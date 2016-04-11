@@ -21,7 +21,7 @@ The following is the code to implement the most basic Functionality Server.
 from funcserver import Server
 
 if __name__ == '__main__':
-    Server().start()
+    Server().run()
 ```
 
 Run it by doing
