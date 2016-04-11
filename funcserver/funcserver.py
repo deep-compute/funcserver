@@ -286,7 +286,6 @@ class Server(BaseScript):
         # tornado app object
         base_handlers = self.prepare_base_handlers()
         handlers = self.prepare_handlers()
-        print resolve_path(self.TEMPLATE_PATH)
         self.template_loader = TemplateLoader([resolve_path(self.TEMPLATE_PATH)])
         _ = self.prepare_template_loader(self.template_loader)
         if _ is not None: self.template_loader = _
@@ -382,7 +381,8 @@ class Server(BaseScript):
         before the server loop is started
         '''
         self.api = self.prepare_api()
-        if not hasattr(self.api, 'log'): self.api.log = self.log
+        if self.api is not None and not hasattr(self.api, 'log'):
+            self.api.log = self.log
 
     def prepare_api(self):
         '''
