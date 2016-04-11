@@ -1,0 +1,5 @@
+recursive-include funcserver/static/js *
+recursive-include funcserver/static/css *
+recursive-include funcserver/static/img *
+recursive-include funcserver/static/fonts *
+recursive-include funcserver/templates *

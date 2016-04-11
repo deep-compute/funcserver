@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}{{ server.NAME }} - Console{% end %}
+
+{% block css %}
+<link href="{{ static_url('css/jquery.terminal.css') }}" rel="stylesheet"/>
+<style type="text/css">
+    body {
+        background-color: black;
+        background-image: none;
+    }
+</style>
+{% end %}
+
+{% block body %}
+<div class="col-sm-12">
+    <div id="terminal"></div>
+</div>
+{% end %}
+
+{% block js %}
+    <script src="{{ static_url('js/jquery.terminal-0.8.7.min.js') }}"></script>
+    <script src="{{ static_url('js/jquery.mousewheel.js') }}"></script>
+
+    <script>
+        SS = null;
+        TERM = null;
+        awaiting_response = false;
+        awaiting_response_id = null;
+        command_id = 0;
+
+        $(document).ready(function() {
+            $('.nav a:contains("Console")').parent().addClass('active');
+
+            SS = new SimSocket();
+            SS.onmessage = on_ws_message;
+
+            var term_settings = {
+                prompt: '> ',
+                greetings: "{{ server.NAME }} Python Console",
+                height: $(document).height() - 100
+            }
+
+            TERM = $('#terminal').terminal(command_handler, term_settings);
+        });
+
+        function command_handler(command, term) {
+            var msg = { type: 0, code: command, id: command_id };
+            SS.send(msg);
+            TERM.pause();
+
+            awaiting_response_id = command_id;
+            awaiting_response = true;
+
+            command_id++;
+        }
+
+        function on_ws_message(msg) {
+            if (msg.id == awaiting_response_id) {
+                TERM.resume();
+                TERM.echo(msg.data);
+                awaiting_response = false;
+            }
+        }
+    </script>
+{% end js %}

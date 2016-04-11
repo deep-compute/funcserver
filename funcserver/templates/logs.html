@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}{{ server.NAME }} - Logs{% end %}
+
+{% block body %}
+<div class="col-sm-12">
+    <div id="events">
+        <pre class="evtwaiting">Listening for events ...</pre>
+    </div>
+</div>
+{% end %}
+
+{% block js %}
+<script id="evt_template" type="text/template">
+    <div class="evt" style="font-family: 'Lucida Console', Monaco, monospace"><%= evt %></div>
+</script>
+
+<script>
+    SS = null;
+    evt_template = _.template($("#evt_template").text());
+
+    function on_message(m) {
+        m = evt_template({'evt': m['data']});
+        $("#events").prepend(m);
+        $("pre.evtwaiting").remove();
+    };
+
+    $(document).ready(function() {
+        $('.nav a:contains("Logs")').parent().addClass('active');
+
+        SS = new SimSocket();
+        SS.onmessage = on_message;
+    });
+
+</script>
+{% end %}
