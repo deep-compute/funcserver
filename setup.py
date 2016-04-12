@@ -10,6 +10,8 @@ setup(
     url="https://github.com/deep-compute/funcserver",
     license='MIT License',
     install_requires=[
+        'gevent',
+        'statsd',
         'requests',
         'tornado',
         'msgpack-python',

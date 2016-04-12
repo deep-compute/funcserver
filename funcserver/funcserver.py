@@ -1,16 +1,23 @@
+from gevent import monkey; monkey.patch_all()
+
 from basescript import BaseScript
 
 import os
+import gc
 import sys
 import json
 import time
 import code
 import inspect
 import logging
+import resource
+import threading
 import msgpack
 import cStringIO
+import traceback
 import urlparse
 
+import statsd
 import gevent
 import requests
 import tornado.ioloop
@@ -28,6 +35,70 @@ MAX_LOG_FILE_SIZE = 100 * 1024 * 1024 # 100MB
 # set the logging level of requests module to warning
 # otherwise it swamps with too many logs
 logging.getLogger('requests').setLevel(logging.WARNING)
+
+class StatsCollector(object):
+    STATS_FLUSH_INTERVAL = 1
+
+    def __init__(self, prefix, stats_loc):
+        self.cache = {}
+        self.gauge_cache = {}
+
+        self.stats = None
+        if not stats_loc: return
+
+        port = None
+        if ':' in stats_loc:
+            ip, port = stats_loc.split(':')
+            port = int(port)
+        else:
+            ip = stats_loc
+
+        S = statsd.StatsClient
+        self.stats = S(ip, port, prefix) if port is not None else S(ip, prefix=prefix)
+
+        def fn():
+            while 1:
+                time.sleep(self.STATS_FLUSH_INTERVAL)
+                self._collect_ramusage()
+                self.send()
+
+        self.stats_thread = gevent.spawn(fn)
+
+    def incr(self, key, n=1):
+        if self.stats is None: return
+        self.cache[key] = self.cache.get(key, 0) + n
+
+    def decr(self, key, n=1):
+        if self.stats is None: return
+        self.cache[key] = self.cache.get(key, 0) - n
+
+    def timing(self, key, ms):
+        if self.stats is None: return
+        return self.stats.timing(key, ms)
+
+    def gauge(self, key, n, delta=False):
+        if delta:
+            v, _ = self.gauge_cache.get(key, (0, True))
+            n += v
+        self.gauge_cache[key] = (n, delta)
+
+    def _collect_ramusage(self):
+        self.gauge('resource.maxrss',
+            resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+
+    def send(self):
+        if self.stats is None: return
+        p = self.stats.pipeline()
+
+        for k, v in self.cache.iteritems():
+            p.incr(k, v)
+
+        for k, (v, d) in self.gauge_cache.iteritems():
+            p.gauge(k, v, delta=d)
+
+        p.send()
+        self.cache = {}
+        self.gauge_cache = {}
 
 def tag(*tags):
     '''
@@ -275,6 +346,9 @@ class Server(BaseScript):
 
     def __init__(self):
         super(Server, self).__init__()
+
+        self.stats = self.create_stats()
+
         self.api = None
         self.log_id = 0
 
@@ -316,6 +390,48 @@ class Server(BaseScript):
         # all active websockets and their state
         self.websocks = {}
 
+    def create_stats(self):
+        stats_prefix = '.'.join([x for x in (self.hostname, self.name) if x])
+        return StatsCollector(stats_prefix, self.args.statsd_server)
+
+    def dump_stacks(self):
+        '''
+        Dumps the stack of all threads and greenlets. This function
+        is meant for debugging. Useful when a deadlock happens.
+
+        borrowed from: http://blog.ziade.org/2012/05/25/zmq-and-gevent-debugging-nightmares/
+        '''
+
+        dump = []
+
+        # threads
+        threads = dict([(th.ident, th.name)
+                            for th in threading.enumerate()])
+
+        for thread, frame in sys._current_frames().items():
+            if thread not in threads: continue
+            dump.append('Thread 0x%x (%s)\n' % (thread, threads[thread]))
+            dump.append(''.join(traceback.format_stack(frame)))
+            dump.append('\n')
+
+        # greenlets
+        try:
+            from greenlet import greenlet
+        except ImportError:
+            return ''.join(dump)
+
+        # if greenlet is present, let's dump each greenlet stack
+        for ob in gc.get_objects():
+            if not isinstance(ob, greenlet):
+                continue
+            if not ob:
+                continue   # not running anymore or not started
+            dump.append('Greenlet\n')
+            dump.append(''.join(traceback.format_stack(ob.gr_frame)))
+            dump.append('\n')
+
+        return ''.join(dump)
+
     @property
     def name(self):
         return '.'.join([x for x in (self.NAME, self.args.name) if x])
@@ -324,6 +440,9 @@ class Server(BaseScript):
         super(Server, self).define_baseargs(parser)
         parser.add_argument('--port', default=self.DEFAULT_PORT,
             type=int, help='port to listen on for server')
+        parser.add_argument('--statsd-server', default=None,
+            help='Location of StatsD server to send statistics. '
+                'Format is ip[:port]. Eg: localhost, localhost:8125')
 
     def _send_log(self, msg):
         msg = {'type': MSG_TYPE_LOG, 'id': self.log_id, 'data': msg}
