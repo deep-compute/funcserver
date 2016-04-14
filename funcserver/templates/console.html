@@ -32,7 +32,10 @@
         $(document).ready(function() {
             $('.nav a:contains("Console")').parent().addClass('active');
 
-            SS = new SimSocket();
+            {% set pysession_id = request.arguments['id'][0] \
+                if request.arguments.get('id', []) else server.new_pysession() %}
+
+            SS = new ServerSocket("{{ pysession_id }}");
             SS.onmessage = on_ws_message;
 
             var term_settings = {
@@ -45,7 +48,7 @@
         });
 
         function command_handler(command, term) {
-            var msg = { type: 0, code: command, id: command_id };
+            var msg = { type: MSG_TYPE_CONSOLE, code: command, id: command_id };
             SS.send(msg);
             TERM.pause();
 

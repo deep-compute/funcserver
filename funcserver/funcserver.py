@@ -11,6 +11,8 @@ import code
 import inspect
 import logging
 import resource
+import string
+import random
 import threading
 import msgpack
 import cStringIO
@@ -27,8 +29,9 @@ import tornado.iostream
 from tornado.template import BaseLoader, Template
 from tornado.web import StaticFileHandler, HTTPError
 
-MSG_TYPE_CONSOLE = 0
-MSG_TYPE_LOG = 1
+MSG_TYPE_INFO = 0
+MSG_TYPE_CONSOLE = 1
+MSG_TYPE_LOG = 2
 
 MAX_LOG_FILE_SIZE = 100 * 1024 * 1024 # 100MB
 
@@ -165,7 +168,7 @@ class WSConnection(tornado.websocket.WebSocketHandler):
 
     WRITE_BUFFER_THRESHOLD = 1 * 1024 * 1024 # 1MB
 
-    def open(self):
+    def open(self, pysession_id):
         '''
         Called when client opens connection. Initialization
         is done here.
@@ -173,6 +176,7 @@ class WSConnection(tornado.websocket.WebSocketHandler):
 
         self.id = id(self)
         self.funcserver = self.application.funcserver
+        self.pysession_id = pysession_id
 
         # register this connection with node
         self.state = self.funcserver.websocks[self.id] = {'id': self.id, 'sock': self}
@@ -191,10 +195,14 @@ class WSConnection(tornado.websocket.WebSocketHandler):
 
         msg = json.loads(msg)
 
-        interpreter = self.state.get('interpreter', None)
-        if interpreter is None:
+        psession = self.funcserver.pysessions.get(self.pysession_id, None)
+        if psession is None:
             interpreter = PyInterpreter(self.funcserver.define_python_namespace())
-            self.state['interpreter'] = interpreter
+            psession = dict(interpreter=interpreter, socks=set([self.id]))
+            self.funcserver.pysessions[self.pysession_id] = psession
+        else:
+            interpreter = psession['interpreter']
+            psession['socks'].add(self.id)
 
         code = msg['code']
         msg_id = msg['id']
@@ -222,6 +230,12 @@ class WSConnection(tornado.websocket.WebSocketHandler):
             self.funcserver.websocks[self.id] = None
             ioloop = tornado.ioloop.IOLoop.instance()
             ioloop.add_callback(lambda: self.funcserver.websocks.pop(self.id, None))
+
+        psession = self.funcserver.pysessions.get(self.pysession_id, None)
+        if psession:
+            psession['socks'].remove(self.id)
+            if not psession['socks']:
+                del self.funcserver.pysessions[self.pysession_id]
 
     def send_message(self, msg, binary=False):
         # TODO: check if following two lines are required
@@ -390,6 +404,9 @@ class Server(BaseScript):
         # all active websockets and their state
         self.websocks = {}
 
+        # all active python interpreter sessions
+        self.pysessions = {}
+
     def create_stats(self):
         stats_prefix = '.'.join([x for x in (self.hostname, self.name) if x])
         return StatsCollector(stats_prefix, self.args.statsd_server)
@@ -436,6 +453,13 @@ class Server(BaseScript):
     def name(self):
         return '.'.join([x for x in (self.NAME, self.args.name) if x])
 
+    def new_pysession(self):
+        chars = list(set(string.letters + string.digits))
+        name = ''.join([random.choice(chars) for i in xrange(10)])
+        if name in self.pysessions:
+            return self.new_pysession()
+        return name
+
     def define_baseargs(self, parser):
         super(Server, self).define_baseargs(parser)
         parser.add_argument('--port', default=self.DEFAULT_PORT,
@@ -461,7 +485,7 @@ class Server(BaseScript):
         # Tornado URL handlers for core functionality
 
         return [
-            (r'/ws', WSConnection),
+            (r'/ws/(.*)', WSConnection),
             (r'/logs', make_handler('logs.html', BaseHandler)),
             (r'/console', make_handler('console.html', BaseHandler)),
             (r'/', make_handler('console.html', BaseHandler)),

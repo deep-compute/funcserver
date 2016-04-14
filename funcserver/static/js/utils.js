@@ -1,8 +1,13 @@
-function SimSocket() {
+var MSG_TYPE_INFO = 0
+var MSG_TYPE_CONSOLE = 1
+var MSG_TYPE_LOG = 2
+
+function ServerSocket(pysession) {
     var self = this;
+    self.pysession = pysession;
 
     self.get_ws_link = function() {
-        return 'ws://' + window.location.host + '/ws';
+        return 'ws://' + window.location.host + '/ws/' + self.pysession;
     }
 
     // Constructor

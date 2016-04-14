@@ -28,7 +28,7 @@
     $(document).ready(function() {
         $('.nav a:contains("Logs")').parent().addClass('active');
 
-        SS = new SimSocket();
+        SS = new ServerSocket("");
         SS.onmessage = on_message;
     });
 
