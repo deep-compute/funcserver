@@ -521,7 +521,7 @@ class Server(BaseScript):
     def on_api_call_start(self, fn, args, kwargs, req):
         pass
 
-    def on_api_call_end(self, fn, args, kwargs, req, result, exc):
+    def on_api_call_end(self, fn, args, kwargs, req, result):
         return result
 
     def pre_run(self):
@@ -583,7 +583,6 @@ class RPCHandler(BaseHandler):
         fn_name = m.get('fn', None)
         sname = 'api.%s' % fn_name
         t = time.time()
-        e = None
 
         try:
             fn = self._get_apifn(fn_name)
@@ -608,8 +607,7 @@ class RPCHandler(BaseHandler):
             self.stats.timing(sname, tdiff)
 
         try:
-            _r = self.server.on_api_call_end(fn_name, args, kwargs, request,
-                result=r if not e else None, exc=e if e else None)
+            _r = self.server.on_api_call_end(fn_name, args, kwargs, request, r)
             if _r is not None:
                 r = _r
         except (SystemExit, KeyboardInterrupt): raise
