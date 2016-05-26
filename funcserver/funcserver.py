@@ -518,14 +518,11 @@ class Server(BaseScript):
     def define_template_namespace(self):
         return self.define_python_namespace()
 
-    def on_api_call_start(self, fn_name, fn, args, kwargs, request):
+    def on_api_call_start(self, fn, args, kwargs, req):
         pass
 
-    def on_api_call_end(self, fn_name, fn, args, kwargs, request, result):
-        pass
-
-    def on_api_call_exception(self, fn_name, fn, args, kwargs, request, exc):
-        pass
+    def on_api_call_end(self, fn, args, kwargs, req, result, exc):
+        return result
 
     def pre_run(self):
         '''
@@ -586,6 +583,7 @@ class RPCHandler(BaseHandler):
         fn_name = m.get('fn', None)
         sname = 'api.%s' % fn_name
         t = time.time()
+        e = None
 
         try:
             fn = self._get_apifn(fn_name)
@@ -593,9 +591,8 @@ class RPCHandler(BaseHandler):
             args = m['args']
             kwargs = self._clean_kwargs(m['kwargs'], fn)
 
-            self.server.on_api_call_start(fn_name, fn, args, kwargs, request)
+            self.server.on_api_call_start(fn_name, args, kwargs, request)
             r = fn(*args, **kwargs)
-            self.server.on_api_call_end(fn_name, fn, args, kwargs, request, r)
 
             if 'raw' not in get_fn_tags(fn):
                 r = {'success': True, 'result': r}
@@ -606,14 +603,18 @@ class RPCHandler(BaseHandler):
                     repr(m.get('kwargs', '{}'))))
             r = {'success': False, 'result': repr(e)}
 
-            try:
-                self.server.on_api_call_exception(fn_name, fn, args, kwargs, request, e)
-            except (SystemExit, KeyboardInterrupt): raise
-            except:
-                self.log.exception('In on_api_call_exception for fn=%s' % fn_name)
         finally:
             tdiff = (time.time() - t) * 1000
             self.stats.timing(sname, tdiff)
+
+        try:
+            _r = self.server.on_api_call_end(fn_name, args, kwargs, request,
+                result=r if not e else None, exc=e if e else None)
+            if _r is not None:
+                r = _r
+        except (SystemExit, KeyboardInterrupt): raise
+        except:
+            self.log.exception('In on_api_call_end for fn=%s' % fn_name)
 
         return r
 
