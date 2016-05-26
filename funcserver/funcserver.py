@@ -518,13 +518,13 @@ class Server(BaseScript):
     def define_template_namespace(self):
         return self.define_python_namespace()
 
-    def on_api_call_start(self, fn_name, fn, args, kwargs):
+    def on_api_call_start(self, fn_name, fn, args, kwargs, request):
         pass
 
-    def on_api_call_end(self, fn_name, fn, args, kwargs, result):
+    def on_api_call_end(self, fn_name, fn, args, kwargs, request, result):
         pass
 
-    def on_api_call_exception(self, fn_name, fn, args, kwargs, exc):
+    def on_api_call_exception(self, fn_name, fn, args, kwargs, request, exc):
         pass
 
     def pre_run(self):
@@ -582,7 +582,7 @@ class RPCHandler(BaseHandler):
 
         return kwargs
 
-    def _handle_single_call(self, m):
+    def _handle_single_call(self, request, m):
         fn_name = m.get('fn', None)
         sname = 'api.%s' % fn_name
         t = time.time()
@@ -593,9 +593,9 @@ class RPCHandler(BaseHandler):
             args = m['args']
             kwargs = self._clean_kwargs(m['kwargs'], fn)
 
-            self.server.on_api_call_start(fn_name, fn, args, kwargs)
+            self.server.on_api_call_start(fn_name, fn, args, kwargs, request)
             r = fn(*args, **kwargs)
-            self.server.on_api_call_end(fn_name, fn, args, kwargs, r)
+            self.server.on_api_call_end(fn_name, fn, args, kwargs, request, r)
 
             if 'raw' not in get_fn_tags(fn):
                 r = {'success': True, 'result': r}
@@ -607,7 +607,7 @@ class RPCHandler(BaseHandler):
             r = {'success': False, 'result': repr(e)}
 
             try:
-                self.server.on_api_call_exception(fn_name, fn, args, kwargs, e)
+                self.server.on_api_call_exception(fn_name, fn, args, kwargs, request, e)
             except (SystemExit, KeyboardInterrupt): raise
             except:
                 self.log.exception('In on_api_call_exception for fn=%s' % fn_name)
