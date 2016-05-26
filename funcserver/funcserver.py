@@ -518,6 +518,15 @@ class Server(BaseScript):
     def define_template_namespace(self):
         return self.define_python_namespace()
 
+    def on_api_call_start(self, fn_name, fn, args, kwargs):
+        pass
+
+    def on_api_call_end(self, fn_name, fn, args, kwargs, result):
+        pass
+
+    def on_api_call_exception(self, fn_name, fn, args, kwargs, exc):
+        pass
+
     def pre_run(self):
         '''
         Override to perform any operations
@@ -581,7 +590,13 @@ class RPCHandler(BaseHandler):
         try:
             fn = self._get_apifn(fn_name)
             self.stats.incr(sname)
-            r = fn(*m['args'], **self._clean_kwargs(m['kwargs'], fn))
+            args = m['args']
+            kwargs = self._clean_kwargs(m['kwargs'], fn)
+
+            self.server.on_api_call_start(fn_name, fn, args, kwargs)
+            r = fn(*args, **kwargs)
+            self.server.on_api_call_end(fn_name, fn, args, kwargs, r)
+
             if 'raw' not in get_fn_tags(fn):
                 r = {'success': True, 'result': r}
         except Exception, e:
@@ -590,23 +605,28 @@ class RPCHandler(BaseHandler):
                 (m.get('fn', ''), repr(m.get('args', '[]')),
                     repr(m.get('kwargs', '{}'))))
             r = {'success': False, 'result': repr(e)}
+
+            try:
+                self.server.on_api_call_exception(fn_name, fn, args, kwargs, e)
+            except (SystemExit, KeyboardInterrupt): raise
+            except:
+                self.log.exception('In on_api_call_exception for fn=%s' % fn_name)
         finally:
             tdiff = (time.time() - t) * 1000
             self.stats.timing(sname, tdiff)
 
         return r
 
-    def _handle_call(self, fn, m, protocol):
+    def _handle_call(self, request, fn, m, protocol):
         if fn != '__batch__':
-            r = self._handle_single_call(m)
+            r = self._handle_single_call(request, m)
         else:
             r = []
             for call in m['calls']:
-                _r = self._handle_single_call(call)
+                _r = self._handle_single_call(request, call)
                 if isinstance(_r, dict) and 'success' in _r:
                     _r = _r['result'] if _r['success'] else None
                 r.append(_r)
-
 
         fnobj = self._get_apifn(fn)
         if 'raw' not in get_fn_tags(fnobj):
@@ -642,7 +662,7 @@ class RPCHandler(BaseHandler):
     def post(self, protocol='default'):
         m = self.get_deserializer(protocol)(self.request.body)
         fn = m['fn']
-        gevent.spawn(lambda: self._handle_call(fn, m, protocol))
+        gevent.spawn(lambda: self._handle_call(self.request, fn, m, protocol))
 
     def failsafe_json_decode(self, v):
         try: v = json.loads(v)
@@ -656,7 +676,7 @@ class RPCHandler(BaseHandler):
 
         fn = args.pop('fn')
         m = dict(kwargs=args, fn=fn, args=[])
-        gevent.spawn(lambda: self._handle_call(fn, m, protocol))
+        gevent.spawn(lambda: self._handle_call(self.request, fn, m, protocol))
 
 def _passthrough(name):
     def fn(self, *args, **kwargs):
