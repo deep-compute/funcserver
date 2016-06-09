@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="funcserver",
-    version='0.2.2',
+    version='0.2.3',
     description="Simple and opiniated way to build APIs in Python",
     keywords='funcserver',
     author='Prashanth Ellina',

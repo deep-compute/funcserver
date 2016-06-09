@@ -385,7 +385,10 @@ class RPCHandler(BaseHandler):
             args = m['args']
             kwargs = self._clean_kwargs(m['kwargs'], fn)
 
-            self.server.on_api_call_start(fn_name, args, kwargs, request)
+            self.server.on_api_call_start(fn_name, args, kwargs, self)
+            if self.get_status() == 304:
+                return
+
             r = fn(*args, **kwargs)
 
             if 'raw' not in get_fn_tags(fn):
@@ -402,7 +405,7 @@ class RPCHandler(BaseHandler):
             self.stats.timing(sname, tdiff)
 
         try:
-            _r = self.server.on_api_call_end(fn_name, args, kwargs, request, r)
+            _r = self.server.on_api_call_end(fn_name, args, kwargs, self, r)
             if _r is not None:
                 r = _r
         except (SystemExit, KeyboardInterrupt): raise
@@ -421,6 +424,10 @@ class RPCHandler(BaseHandler):
                 if isinstance(_r, dict) and 'success' in _r:
                     _r = _r['result'] if _r['success'] else None
                 r.append(_r)
+
+        if self.get_status() == 304:
+            self.finish()
+            return
 
         fnobj = self._get_apifn(fn)
         if 'raw' not in get_fn_tags(fnobj):
@@ -651,10 +658,10 @@ class Server(BaseScript):
     def define_template_namespace(self):
         return self.define_python_namespace()
 
-    def on_api_call_start(self, fn, args, kwargs, req):
+    def on_api_call_start(self, fn, args, kwargs, handler):
         pass
 
-    def on_api_call_end(self, fn, args, kwargs, req, result):
+    def on_api_call_end(self, fn, args, kwargs, handler, result):
         return result
 
     def pre_run(self):
