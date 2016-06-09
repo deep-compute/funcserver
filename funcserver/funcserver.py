@@ -341,6 +341,138 @@ class CustomStaticFileHandler(StaticFileHandler):
             raise HTTPError(403, "%s is not a file", self.path)
         return absolute_path
 
+class RPCHandler(BaseHandler):
+    WRITE_CHUNK_SIZE = 4096
+
+    def initialize(self, server):
+        self.server = server
+        self.stats = server.stats
+        self.log = server.log
+        self.api = server.api
+
+    def _get_apifn(self, fn_name):
+        obj = self.api
+        for part in fn_name.split('.'):
+            obj = getattr(obj, part)
+        return obj
+
+    def _clean_kwargs(self, kwargs, fn):
+        '''
+        Remove unexpected keyword arguments from the
+        set of received keyword arguments.
+        '''
+        # Do not do the cleaning if server config
+        # doesnt ask to ignore
+        if not self.server.IGNORE_UNEXPECTED_KWARGS:
+            return kwargs
+
+        expected_kwargs = set(inspect.getargspec(fn).args)
+        got_kwargs = set(kwargs.keys())
+        unexpected_kwargs = got_kwargs - expected_kwargs
+        for k in unexpected_kwargs:
+            del kwargs[k]
+
+        return kwargs
+
+    def _handle_single_call(self, request, m):
+        fn_name = m.get('fn', None)
+        sname = 'api.%s' % fn_name
+        t = time.time()
+
+        try:
+            fn = self._get_apifn(fn_name)
+            self.stats.incr(sname)
+            args = m['args']
+            kwargs = self._clean_kwargs(m['kwargs'], fn)
+
+            self.server.on_api_call_start(fn_name, args, kwargs, request)
+            r = fn(*args, **kwargs)
+
+            if 'raw' not in get_fn_tags(fn):
+                r = {'success': True, 'result': r}
+        except Exception, e:
+            self.log.exception('Exception during RPC call. '
+                'fn=%s, args=%s, kwargs=%s' % \
+                (m.get('fn', ''), repr(m.get('args', '[]')),
+                    repr(m.get('kwargs', '{}'))))
+            r = {'success': False, 'result': repr(e)}
+
+        finally:
+            tdiff = (time.time() - t) * 1000
+            self.stats.timing(sname, tdiff)
+
+        try:
+            _r = self.server.on_api_call_end(fn_name, args, kwargs, request, r)
+            if _r is not None:
+                r = _r
+        except (SystemExit, KeyboardInterrupt): raise
+        except:
+            self.log.exception('In on_api_call_end for fn=%s' % fn_name)
+
+        return r
+
+    def _handle_call(self, request, fn, m, protocol):
+        if fn != '__batch__':
+            r = self._handle_single_call(request, m)
+        else:
+            r = []
+            for call in m['calls']:
+                _r = self._handle_single_call(request, call)
+                if isinstance(_r, dict) and 'success' in _r:
+                    _r = _r['result'] if _r['success'] else None
+                r.append(_r)
+
+        fnobj = self._get_apifn(fn)
+        if 'raw' not in get_fn_tags(fnobj):
+            r = self.get_serializer(protocol)(r)
+
+        mime = getattr(fnobj, 'mime', self.get_mime(protocol))
+        self.set_header('Content-Type', mime)
+        self.set_header('Content-Length', len(r))
+
+        chunk_size = self.WRITE_CHUNK_SIZE
+        for i in xrange(0, len(r), chunk_size):
+            self.write(r[i:i+chunk_size])
+            self.flush()
+        self.finish()
+
+    def get_serializer(self, name):
+        return {'msgpack': msgpack.packb,
+                'json': json.dumps,
+                'python': repr}.get(name, self.server.SERIALIZER)
+
+    def get_deserializer(self, name):
+        return {'msgpack': msgpack.packb,
+                'json': json.loads,
+                'python': eval}.get(name, self.server.DESERIALIZER)
+
+    def get_mime(self, name):
+        return {'msgpack': 'application/x-msgpack',
+                'json': 'application/json',
+                'python': 'application/x-python'}\
+                .get(name, self.server.MIME)
+
+    @tornado.web.asynchronous
+    def post(self, protocol='default'):
+        m = self.get_deserializer(protocol)(self.request.body)
+        fn = m['fn']
+        gevent.spawn(lambda: self._handle_call(self.request, fn, m, protocol))
+
+    def failsafe_json_decode(self, v):
+        try: v = json.loads(v)
+        except ValueError: pass
+        return v
+
+    @tornado.web.asynchronous
+    def get(self, protocol='default'):
+        D = self.failsafe_json_decode
+        args = dict([(k, D(v[0])) for k, v in self.request.arguments.iteritems()])
+
+        fn = args.pop('fn')
+        m = dict(kwargs=args, fn=fn, args=[])
+        gevent.spawn(lambda: self._handle_call(self.request, fn, m, protocol))
+
+
 class Server(BaseScript):
     NAME = 'FuncServer'
     DESC = 'Default Functionality Server'
@@ -351,6 +483,7 @@ class Server(BaseScript):
     TEMPLATE_PATH = 'templates'
 
     APP_CLASS = tornado.web.Application
+    RPC_HANDLER_CLASS = RPCHandler
 
     SERIALIZER = staticmethod(msgpack.packb)
     DESERIALIZER = staticmethod(msgpack.unpackb)
@@ -489,7 +622,7 @@ class Server(BaseScript):
             (r'/logs', make_handler('logs.html', BaseHandler)),
             (r'/console', make_handler('console.html', BaseHandler)),
             (r'/', make_handler('console.html', BaseHandler)),
-            (r'/rpc(?:/([^/]*)/?)?', RPCHandler, dict(server=self)),
+            (r'/rpc(?:/([^/]*)/?)?', self.RPC_HANDLER_CLASS, dict(server=self)),
         ]
 
     def prepare_handlers(self):
@@ -545,137 +678,6 @@ class Server(BaseScript):
         if self.args.port != 0:
             self.app.listen(self.args.port)
         tornado.ioloop.IOLoop.instance().start()
-
-class RPCHandler(BaseHandler):
-    WRITE_CHUNK_SIZE = 4096
-
-    def initialize(self, server):
-        self.server = server
-        self.stats = server.stats
-        self.log = server.log
-        self.api = server.api
-
-    def _get_apifn(self, fn_name):
-        obj = self.api
-        for part in fn_name.split('.'):
-            obj = getattr(obj, part)
-        return obj
-
-    def _clean_kwargs(self, kwargs, fn):
-        '''
-        Remove unexpected keyword arguments from the
-        set of received keyword arguments.
-        '''
-        # Do not do the cleaning if server config
-        # doesnt ask to ignore
-        if not self.server.IGNORE_UNEXPECTED_KWARGS:
-            return kwargs
-
-        expected_kwargs = set(inspect.getargspec(fn).args)
-        got_kwargs = set(kwargs.keys())
-        unexpected_kwargs = got_kwargs - expected_kwargs
-        for k in unexpected_kwargs:
-            del kwargs[k]
-
-        return kwargs
-
-    def _handle_single_call(self, request, m):
-        fn_name = m.get('fn', None)
-        sname = 'api.%s' % fn_name
-        t = time.time()
-
-        try:
-            fn = self._get_apifn(fn_name)
-            self.stats.incr(sname)
-            args = m['args']
-            kwargs = self._clean_kwargs(m['kwargs'], fn)
-
-            self.server.on_api_call_start(fn_name, args, kwargs, request)
-            r = fn(*args, **kwargs)
-
-            if 'raw' not in get_fn_tags(fn):
-                r = {'success': True, 'result': r}
-        except Exception, e:
-            self.log.exception('Exception during RPC call. '
-                'fn=%s, args=%s, kwargs=%s' % \
-                (m.get('fn', ''), repr(m.get('args', '[]')),
-                    repr(m.get('kwargs', '{}'))))
-            r = {'success': False, 'result': repr(e)}
-
-        finally:
-            tdiff = (time.time() - t) * 1000
-            self.stats.timing(sname, tdiff)
-
-        try:
-            _r = self.server.on_api_call_end(fn_name, args, kwargs, request, r)
-            if _r is not None:
-                r = _r
-        except (SystemExit, KeyboardInterrupt): raise
-        except:
-            self.log.exception('In on_api_call_end for fn=%s' % fn_name)
-
-        return r
-
-    def _handle_call(self, request, fn, m, protocol):
-        if fn != '__batch__':
-            r = self._handle_single_call(request, m)
-        else:
-            r = []
-            for call in m['calls']:
-                _r = self._handle_single_call(request, call)
-                if isinstance(_r, dict) and 'success' in _r:
-                    _r = _r['result'] if _r['success'] else None
-                r.append(_r)
-
-        fnobj = self._get_apifn(fn)
-        if 'raw' not in get_fn_tags(fnobj):
-            r = self.get_serializer(protocol)(r)
-
-        mime = getattr(fnobj, 'mime', self.get_mime(protocol))
-        self.set_header('Content-Type', mime)
-        self.set_header('Content-Length', len(r))
-
-        chunk_size = self.WRITE_CHUNK_SIZE
-        for i in xrange(0, len(r), chunk_size):
-            self.write(r[i:i+chunk_size])
-            self.flush()
-        self.finish()
-
-    def get_serializer(self, name):
-        return {'msgpack': msgpack.packb,
-                'json': json.dumps,
-                'python': repr}.get(name, self.server.SERIALIZER)
-
-    def get_deserializer(self, name):
-        return {'msgpack': msgpack.packb,
-                'json': json.loads,
-                'python': eval}.get(name, self.server.DESERIALIZER)
-
-    def get_mime(self, name):
-        return {'msgpack': 'application/x-msgpack',
-                'json': 'application/json',
-                'python': 'application/x-python'}\
-                .get(name, self.server.MIME)
-
-    @tornado.web.asynchronous
-    def post(self, protocol='default'):
-        m = self.get_deserializer(protocol)(self.request.body)
-        fn = m['fn']
-        gevent.spawn(lambda: self._handle_call(self.request, fn, m, protocol))
-
-    def failsafe_json_decode(self, v):
-        try: v = json.loads(v)
-        except ValueError: pass
-        return v
-
-    @tornado.web.asynchronous
-    def get(self, protocol='default'):
-        D = self.failsafe_json_decode
-        args = dict([(k, D(v[0])) for k, v in self.request.arguments.iteritems()])
-
-        fn = args.pop('fn')
-        m = dict(kwargs=args, fn=fn, args=[])
-        gevent.spawn(lambda: self._handle_call(self.request, fn, m, protocol))
 
 def _passthrough(name):
     def fn(self, *args, **kwargs):
