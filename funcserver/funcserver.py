@@ -65,7 +65,8 @@ class StatsCollector(object):
                 self._collect_ramusage()
                 self.send()
 
-        self.stats_thread = gevent.spawn(fn)
+        self.stats_thread = threading.Thread(target=fn)
+        self.stats_thread.start()
 
     def incr(self, key, n=1):
         if self.stats is None: return
@@ -463,7 +464,8 @@ class RPCHandler(BaseHandler):
     def post(self, protocol='default'):
         m = self.get_deserializer(protocol)(self.request.body)
         fn = m['fn']
-        gevent.spawn(lambda: self._handle_call(self.request, fn, m, protocol))
+        th = threading.Thread(target=lambda: self._handle_call(self.request, fn, m, protocol))
+        th.start()
 
     def failsafe_json_decode(self, v):
         try: v = json.loads(v)
@@ -477,7 +479,8 @@ class RPCHandler(BaseHandler):
 
         fn = args.pop('fn')
         m = dict(kwargs=args, fn=fn, args=[])
-        gevent.spawn(lambda: self._handle_call(self.request, fn, m, protocol))
+        th = threading.Thread(target=lambda: self._handle_call(self.request, fn, m, protocol))
+        th.start()
 
 
 class Server(BaseScript):
