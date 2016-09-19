@@ -475,7 +475,8 @@ class RPCHandler(BaseHandler):
     @tornado.web.asynchronous
     def get(self, protocol='default'):
         D = self.failsafe_json_decode
-        args = dict([(k, D(v[0])) for k, v in self.request.arguments.iteritems()])
+        args = dict([(k, D(v[0]) if len(v) == 1 else [D(x) for x in v])\
+                    for k, v in self.request.arguments.iteritems()])
 
         fn = args.pop('fn')
         m = dict(kwargs=args, fn=fn, args=[])
