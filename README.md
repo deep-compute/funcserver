@@ -8,7 +8,7 @@ FuncServer An abstraction to implement web accessible servers hosting any sort o
 
 ## Installation
 ``` bash
-sudo pip install git+git://github.com/deep-compute/funcserver.git
+pip install funcserver
 ```
 
 ## Usage
