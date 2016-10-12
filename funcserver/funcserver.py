@@ -430,7 +430,7 @@ class RPCHandler(BaseHandler):
             self.finish()
             return
 
-        fnobj = self._get_apifn(fn)
+        fnobj = self._get_apifn(fn) if fn != '__batch__' else (lambda: 0)
         if 'raw' not in get_fn_tags(fnobj):
             r = self.get_serializer(protocol)(r)
 
