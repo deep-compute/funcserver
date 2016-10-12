@@ -66,6 +66,7 @@ class StatsCollector(object):
                 self.send()
 
         self.stats_thread = threading.Thread(target=fn)
+        self.stats_thread.daemon = True
         self.stats_thread.start()
 
     def incr(self, key, n=1):
