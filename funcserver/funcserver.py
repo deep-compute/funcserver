@@ -18,6 +18,7 @@ import msgpack
 import cStringIO
 import traceback
 import urlparse
+from multiprocessing.pool import ThreadPool
 
 import statsd
 import gevent
@@ -465,8 +466,7 @@ class RPCHandler(BaseHandler):
     def post(self, protocol='default'):
         m = self.get_deserializer(protocol)(self.request.body)
         fn = m['fn']
-        th = threading.Thread(target=lambda: self._handle_call(self.request, fn, m, protocol))
-        th.start()
+        self.server.threadpool.apply_async(lambda: self._handle_call(self.request, fn, m, protocol))
 
     def failsafe_json_decode(self, v):
         try: v = json.loads(v)
@@ -481,8 +481,7 @@ class RPCHandler(BaseHandler):
 
         fn = args.pop('fn')
         m = dict(kwargs=args, fn=fn, args=[])
-        th = threading.Thread(target=lambda: self._handle_call(self.request, fn, m, protocol))
-        th.start()
+        self.server.threadpool.apply_async(lambda: self._handle_call(self.request, fn, m, protocol))
 
 
 class Server(BaseScript):
@@ -503,10 +502,14 @@ class Server(BaseScript):
 
     IGNORE_UNEXPECTED_KWARGS = False
 
+    # Number of worker threads in the threadpool
+    THREADPOOL_WORKERS = 32
+
     def __init__(self):
         super(Server, self).__init__()
 
         self.stats = self.create_stats()
+        self.threadpool = ThreadPool(self.THREADPOOL_WORKERS)
 
         self.api = None
         self.log_id = 0
