@@ -21,13 +21,13 @@ The following is the code to implement the most basic Functionality Server.
 from funcserver import Server
 
 if __name__ == '__main__':
-    Server().run()
+    Server()
 ```
 
 Run it by doing
 
 ``` bash
-python example.py
+python example.py run
 ```
 
 This server is now started and listening on default port 9345 for commands. You can interact with it using the Web UI by visiting http://localhost:9345/
@@ -35,7 +35,7 @@ This server is now started and listening on default port 9345 for commands. You 
 If you want to start it on a different port, do
 
 ``` bash
-python example.py --port <port no>
+python example.py --port <port no> run
 ```
 
 ### Things to do in the Console
@@ -113,5 +113,5 @@ class MyServer(Server):
         pass
 
 if __name__ == '__main__':
-    MyServer().run()
+    MyServer()
 ```

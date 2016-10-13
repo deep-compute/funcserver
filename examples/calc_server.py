@@ -34,4 +34,4 @@ class CalcServer(Server):
             help='Ignore division by zero errors')
 
 if __name__ == '__main__':
-    CalcServer().run()
+    CalcServer()

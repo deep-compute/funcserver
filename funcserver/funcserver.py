@@ -775,4 +775,4 @@ class Client(object):
         return res
 
 if __name__ == '__main__':
-    Server().run()
+    Server()
