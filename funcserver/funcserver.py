@@ -150,6 +150,14 @@ class RPCCallException(Exception):
     pass
 
 class BaseHandler(tornado.web.RequestHandler):
+    def __init__(self, application, request, **kwargs):
+        super(BaseHandler, self).__init__(application, request, **kwargs)
+        a = self.application
+        self.server = s = a.funcserver
+        self.stats = s.stats
+        self.log = s.log
+        self.api = s.api
+
     def get_template_namespace(self):
         ns = super(BaseHandler, self).get_template_namespace()
         ns.update(sys.funcserver.define_template_namespace())
@@ -346,12 +354,6 @@ class CustomStaticFileHandler(StaticFileHandler):
 
 class RPCHandler(BaseHandler):
     WRITE_CHUNK_SIZE = 4096
-
-    def initialize(self, server):
-        self.server = server
-        self.stats = server.stats
-        self.log = server.log
-        self.api = server.api
 
     def _get_apifn(self, fn_name):
         obj = self.api
@@ -637,7 +639,7 @@ class Server(BaseScript):
             (r'/logs', make_handler('logs.html', BaseHandler)),
             (r'/console', make_handler('console.html', BaseHandler)),
             (r'/', make_handler('console.html', BaseHandler)),
-            (r'/rpc(?:/([^/]*)/?)?', self.RPC_HANDLER_CLASS, dict(server=self)),
+            (r'/rpc(?:/([^/]*)/?)?', self.RPC_HANDLER_CLASS),
         ]
 
     def prepare_handlers(self):
