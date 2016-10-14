@@ -35,7 +35,7 @@ This server is now started and listening on default port 9345 for commands. You 
 If you want to start it on a different port, do
 
 ``` bash
-python example.py --port <port no> run
+python example.py run --port <port no>
 ```
 
 ### Things to do in the Console

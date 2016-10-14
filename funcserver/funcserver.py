@@ -610,8 +610,9 @@ class Server(BaseScript):
             return self.new_pysession()
         return name
 
-    def define_baseargs(self, parser):
-        super(Server, self).define_baseargs(parser)
+    def define_args(self, parser):
+        super(Server, self).define_args(parser)
+
         parser.add_argument('--port', default=self.DEFAULT_PORT,
             type=int, help='port to listen on for server')
         parser.add_argument('--statsd-server', default=None,

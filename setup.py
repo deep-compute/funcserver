@@ -10,7 +10,7 @@ except:
     Make sure pypandoc is installed.
     """
 
-version = '0.2.6'
+version = '0.2.7'
 setup(
     name="funcserver",
     version=version,
