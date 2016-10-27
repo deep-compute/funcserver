@@ -510,6 +510,7 @@ class Server(BaseScript):
     def __init__(self):
         super(Server, self).__init__()
 
+    def init(self):
         self.stats = self.create_stats()
         self.threadpool = ThreadPool(self.THREADPOOL_WORKERS)
 
