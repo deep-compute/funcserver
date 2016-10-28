@@ -113,5 +113,5 @@ class MyServer(Server):
         pass
 
 if __name__ == '__main__':
-    MyServer()
+    MyServer().start()
 ```

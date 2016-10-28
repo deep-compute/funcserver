@@ -29,9 +29,10 @@ class CalcServer(Server):
         return CalcAPI(self.args.ignore_divbyzero)
 
     def define_args(self, parser):
+        super(CalcServer, self).define_args(parser)
         parser.add_argument('--ignore-divbyzero', default=False,
             action='store_true',
             help='Ignore division by zero errors')
 
 if __name__ == '__main__':
-    CalcServer()
+    CalcServer().start()
