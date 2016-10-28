@@ -675,15 +675,6 @@ class Server(BaseScript):
     def on_api_call_end(self, fn, args, kwargs, handler, result):
         return result
 
-    def pre_run(self):
-        '''
-        Override to perform any operations
-        before the server loop is started
-        '''
-        self.api = self.prepare_api()
-        if self.api is not None and not hasattr(self.api, 'log'):
-            self.api.log = self.log
-
     def prepare_api(self):
         '''
         Prepare the API object that is exposed as
@@ -692,7 +683,10 @@ class Server(BaseScript):
         return None
 
     def run(self):
-        self.pre_run()
+        self.api = self.prepare_api()
+        if self.api is not None and not hasattr(self.api, 'log'):
+            self.api.log = self.log
+
         if self.args.port != 0:
             self.app.listen(self.args.port)
         tornado.ioloop.IOLoop.instance().start()
