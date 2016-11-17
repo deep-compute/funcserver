@@ -431,7 +431,6 @@ class RPCHandler(BaseHandler):
                 r.append(_r)
 
         if self.get_status() == 304:
-            self.finish()
             return
 
         fnobj = self._get_apifn(fn) if fn != '__batch__' else (lambda: 0)
@@ -446,7 +445,6 @@ class RPCHandler(BaseHandler):
         for i in xrange(0, len(r), chunk_size):
             self.write(r[i:i+chunk_size])
             self.flush()
-        self.finish()
 
     def get_serializer(self, name):
         return {'msgpack': msgpack.packb,
@@ -464,11 +462,25 @@ class RPCHandler(BaseHandler):
                 'python': 'application/x-python'}\
                 .get(name, self.server.MIME)
 
+    def _handle_call_wrapper(self, request, fn, m, protocol):
+        try:
+            return self._handle_call(request, fn, m, protocol)
+        except Exception, e:
+            self.log.exception('Exception during RPC call. '
+                'fn=%s, args=%s, kwargs=%s' % \
+                (m.get('fn', ''), repr(m.get('args', '[]')),
+                    repr(m.get('kwargs', '{}'))))
+            self.clear()
+            self.set_status(500)
+
+        finally:
+            self.finish()
+
     @tornado.web.asynchronous
     def post(self, protocol='default'):
         m = self.get_deserializer(protocol)(self.request.body)
         fn = m['fn']
-        self.server.threadpool.apply_async(lambda: self._handle_call(self.request, fn, m, protocol))
+        self.server.threadpool.apply_async(lambda: self._handle_call_wrapper(self.request, fn, m, protocol))
 
     def failsafe_json_decode(self, v):
         try: v = json.loads(v)
@@ -483,7 +495,7 @@ class RPCHandler(BaseHandler):
 
         fn = args.pop('fn')
         m = dict(kwargs=args, fn=fn, args=[])
-        self.server.threadpool.apply_async(lambda: self._handle_call(self.request, fn, m, protocol))
+        self.server.threadpool.apply_async(lambda: self._handle_call_wrapper(self.request, fn, m, protocol))
 
 
 class Server(BaseScript):
