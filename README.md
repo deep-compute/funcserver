@@ -1,4 +1,4 @@
-# FuncServer
+# FuncServer [![Build Status][travis-ci_status_img]][travis-ci_funcserver]
 
 Simple and opiniated way to build APIs in Python.
 
@@ -115,3 +115,6 @@ class MyServer(Server):
 if __name__ == '__main__':
     MyServer().start()
 ```
+
+[travis-ci_status_img]: https://travis-ci.org/deep-compute/funcserver.svg?branch=master
+[travis-ci_funcserver]: https://travis-ci.org/deep-compute/funcserver
