@@ -287,16 +287,6 @@ def resolve_path(path):
     return path if os.path.isabs(path) else os.path.join(os.path.dirname(__file__), path)
 
 
-class WebLogHandler(logging.Handler):
-    def __init__(self, funcserver):
-        super(WebLogHandler, self).__init__()
-        self.funcserver = funcserver
-
-    def emit(self, record):
-        msg = self.format(record)
-        self.funcserver._send_log(msg)
-
-
 class TemplateLoader(BaseLoader):
     def __init__(self, dirs=None, **kwargs):
         super(TemplateLoader, self).__init__(**kwargs)
@@ -520,18 +510,20 @@ class Server(BaseScript):
     THREADPOOL_WORKERS = 32
 
     def __init__(self):
+        self.log_id = 0
+
+        # all active websockets and their state
+        self.websocks = {}
+
+        # all active python interpreter sessions
+        self.pysessions = {}
+
         super(Server, self).__init__()
 
         self.stats = self.create_stats()
         self.threadpool = ThreadPool(self.THREADPOOL_WORKERS)
 
         self.api = None
-        self.log_id = 0
-
-        # add weblog handler to logger
-        weblog_hdlr = WebLogHandler(self)
-        weblog_hdlr.setFormatter(self.LOG_FORMATTER)
-        self.log.addHandler(weblog_hdlr)
 
         # tornado app object
         base_handlers = self.prepare_base_handlers()
@@ -562,12 +554,6 @@ class Server(BaseScript):
         self.app.add_handlers(self.VIRTUAL_HOST, all_handlers)
 
         sys.funcserver = self.app.funcserver = self
-
-        # all active websockets and their state
-        self.websocks = {}
-
-        # all active python interpreter sessions
-        self.pysessions = {}
 
     def create_stats(self):
         stats_prefix = '.'.join([x for x in (self.hostname, self.name) if x])
@@ -631,7 +617,12 @@ class Server(BaseScript):
             help='Location of StatsD server to send statistics. '
                 'Format is ip[:port]. Eg: localhost, localhost:8125')
 
-    def _send_log(self, msg):
+    def define_log_pre_format_hooks(self):
+        hooks = super(Server, self).define_log_pre_format_hooks()
+        hooks.append(self._send_log_to_ws)
+        return hooks
+
+    def _send_log_to_ws(self, msg):
         msg = {'type': MSG_TYPE_LOG, 'id': self.log_id, 'data': msg}
 
         bad_ws = []

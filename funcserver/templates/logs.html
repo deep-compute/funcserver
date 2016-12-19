@@ -20,7 +20,7 @@
     evt_template = _.template($("#evt_template").text());
 
     function on_message(m) {
-        m = evt_template({'evt': m['data']});
+        m = evt_template({'evt': JSON.stringify(m['data'])});
         $("#events").prepend(m);
         $("pre.evtwaiting").remove();
     };
