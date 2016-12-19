@@ -10,7 +10,7 @@ except:
     Make sure pypandoc is installed.
     """
 
-version = '0.2.10'
+version = '0.2.11'
 setup(
     name="funcserver",
     version=version,
@@ -28,7 +28,7 @@ setup(
         'requests',
         'tornado',
         'msgpack-python',
-        'basescript',
+        'basescript >= 0.1.6',
     ],
     package_dir={'funcserver': 'funcserver'},
     packages=find_packages('.'),
