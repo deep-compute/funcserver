@@ -3,7 +3,7 @@ import os
 
 HERE = os.path.abspath(os.path.dirname(__file__))
 def get_long_description():
-    dis = [ HERE ]
+    dirs = [ HERE ]
     if os.getenv("TRAVIS"):
         dirs.append(os.getenv("TRAVIS_BUILD_DIR"))
 
