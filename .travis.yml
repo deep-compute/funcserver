@@ -2,17 +2,20 @@ language: python
 python:
   - "2.7"
 install: 
-  # TODO is there a different way to get pandoc ?
-  - "sudo apt-get install pandoc"
-  - "pip install pypandoc"
   - "pip install ."
 script: 
   - echo "no tests yet"
+before_deploy:
+  - "wget https://github.com/jgm/pandoc/releases/download/1.19.1/pandoc-1.19.1-1-amd64.deb -O $TRAVIS_BUILD_DIR/pandoc.deb"
+  - "sudo dpkg -i $TRAVIS_BUILD_DIR/pandoc.deb"
+  - "rm $TRAVIS_BUILD_DIR/pandoc.deb"
+  - "pandoc --from=markdown --to=rst --output=$TRAVIS_BUILD_DIR/README.rst README.md"
 deploy:
   # test pypi
   - provider: pypi
     distributions: "sdist bdist_wheel"
     server: https://testpypi.python.org/pypi
+    skip_cleanup: true
     user: "deepcompute"
     password:
       secure: "Q1ziL0arTF7kn70hBLi77MJaoU4QfYOVbcqMD1RC8tcVCVmKfzrTAf2GbvQnmVgKqlRFugv1gQPocWniJ0XmSAjFcZxECdjdkDyk6/8Cq2jfmKZrWCEMj6OcB+m0wV225CrYbcKfwMGef6MPK2cFr0IT/f4i+JgpA6FhfXYYgsVJtML3UaqbQPieXTM1g3U9SbntV+AvHfulCJZJ4dLlXZwjEFAYnF8xb4bZmWEsHjqgXX8Abvxgo9OCMkypO6BVQoppY+J4EoZIBIA/x93PHFODF+TVp88S2FUlB9Uvy9FchoWup9zRvnYa4SCyVN1f5PBlFLXvsErwTnwYcG5l+9Fqv19P4F3pgbaLD/H3PKf8kr7VqM/WLLY9O5UBoQot5W2TqWqSK9y3ZngT5vT6BHz3+joswHA2bY6OhdkhHLiPdj5aAzQudrjuO6g/vOmQxUU1l9GFuiyM4I7+PfPTLB/Y9F3OvfxMOoxZLMtFsErNtK7gdfVlkgT7XV/gazvGKUiXBOMQ1cbssk8ojQLEyh44969aSqlq/SkPKHqVpQv98GGyLOJBC9lMbpMFEJDa5B62rbrX5SZZsekEf/6t9AUSvmHXW9jKmqxzG74oMnGlCD6fkQ1vk+6j1E+XrRY0xRmkS3sHSzSGDNEzN5Llb8KsgLWvOHww93s8F0Hy3G4="
@@ -22,6 +25,7 @@ deploy:
   # pypi
   - provider: pypi
     distributions: "sdist bdist_wheel"
+    skip_cleanup: true
     user: "deepcompute"
     passsword:
       secure: "Q1ziL0arTF7kn70hBLi77MJaoU4QfYOVbcqMD1RC8tcVCVmKfzrTAf2GbvQnmVgKqlRFugv1gQPocWniJ0XmSAjFcZxECdjdkDyk6/8Cq2jfmKZrWCEMj6OcB+m0wV225CrYbcKfwMGef6MPK2cFr0IT/f4i+JgpA6FhfXYYgsVJtML3UaqbQPieXTM1g3U9SbntV+AvHfulCJZJ4dLlXZwjEFAYnF8xb4bZmWEsHjqgXX8Abvxgo9OCMkypO6BVQoppY+J4EoZIBIA/x93PHFODF+TVp88S2FUlB9Uvy9FchoWup9zRvnYa4SCyVN1f5PBlFLXvsErwTnwYcG5l+9Fqv19P4F3pgbaLD/H3PKf8kr7VqM/WLLY9O5UBoQot5W2TqWqSK9y3ZngT5vT6BHz3+joswHA2bY6OhdkhHLiPdj5aAzQudrjuO6g/vOmQxUU1l9GFuiyM4I7+PfPTLB/Y9F3OvfxMOoxZLMtFsErNtK7gdfVlkgT7XV/gazvGKUiXBOMQ1cbssk8ojQLEyh44969aSqlq/SkPKHqVpQv98GGyLOJBC9lMbpMFEJDa5B62rbrX5SZZsekEf/6t9AUSvmHXW9jKmqxzG74oMnGlCD6fkQ1vk+6j1E+XrRY0xRmkS3sHSzSGDNEzN5Llb8KsgLWvOHww93s8F0Hy3G4="

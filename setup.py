@@ -1,16 +1,28 @@
 from setuptools import setup, find_packages
+import os
 
-long_description = ""
-try:
-    import pypandoc
-    long_description = pypandoc.convert('README.md', 'rst', format='markdown_github')
-except:
-    print """
-    README.md could not be converted to rst format.
-    Make sure pypandoc is installed.
-    """
+HERE = os.path.abspath(os.path.dirname(__file__))
+def get_long_description():
+    dis = [ HERE ]
+    if os.getenv("TRAVIS"):
+        dirs.append(os.getenv("TRAVIS_BUILD_DIR"))
 
-version = '0.2.11'
+    long_description = ""
+
+    for d in dirs:
+        rst_readme = os.path.join(d, "README.rst")
+        if not os.path.exists(rst_readme):
+            continue
+
+        with open(rst_readme) as fp:
+            long_description = fp.read()
+            return long_description
+
+    return long_description
+
+long_description = get_long_description()
+
+version = '0.2.12'
 setup(
     name="funcserver",
     version=version,
