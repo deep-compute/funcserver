@@ -27,7 +27,7 @@ deploy:
     distributions: "sdist bdist_wheel"
     skip_cleanup: true
     user: "deepcompute"
-    passsword:
+    password:
       secure: "Q1ziL0arTF7kn70hBLi77MJaoU4QfYOVbcqMD1RC8tcVCVmKfzrTAf2GbvQnmVgKqlRFugv1gQPocWniJ0XmSAjFcZxECdjdkDyk6/8Cq2jfmKZrWCEMj6OcB+m0wV225CrYbcKfwMGef6MPK2cFr0IT/f4i+JgpA6FhfXYYgsVJtML3UaqbQPieXTM1g3U9SbntV+AvHfulCJZJ4dLlXZwjEFAYnF8xb4bZmWEsHjqgXX8Abvxgo9OCMkypO6BVQoppY+J4EoZIBIA/x93PHFODF+TVp88S2FUlB9Uvy9FchoWup9zRvnYa4SCyVN1f5PBlFLXvsErwTnwYcG5l+9Fqv19P4F3pgbaLD/H3PKf8kr7VqM/WLLY9O5UBoQot5W2TqWqSK9y3ZngT5vT6BHz3+joswHA2bY6OhdkhHLiPdj5aAzQudrjuO6g/vOmQxUU1l9GFuiyM4I7+PfPTLB/Y9F3OvfxMOoxZLMtFsErNtK7gdfVlkgT7XV/gazvGKUiXBOMQ1cbssk8ojQLEyh44969aSqlq/SkPKHqVpQv98GGyLOJBC9lMbpMFEJDa5B62rbrX5SZZsekEf/6t9AUSvmHXW9jKmqxzG74oMnGlCD6fkQ1vk+6j1E+XrRY0xRmkS3sHSzSGDNEzN5Llb8KsgLWvOHww93s8F0Hy3G4="
     on:
       branch: master
