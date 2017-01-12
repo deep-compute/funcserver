@@ -382,9 +382,8 @@ class RPCHandler(BaseHandler):
                 return
 
             r = fn(*args, **kwargs)
+            r = {'success': True, 'result': r}
 
-            if 'raw' not in get_fn_tags(fn):
-                r = {'success': True, 'result': r}
         except Exception, e:
             self.log.exception('Exception during RPC call. '
                 'fn=%s, args=%s, kwargs=%s' % \
@@ -410,9 +409,16 @@ class RPCHandler(BaseHandler):
         if fn != '__batch__':
             r = self._handle_single_call(request, m)
         else:
+            # Batch calls
             r = []
             for call in m['calls']:
                 _r = self._handle_single_call(request, call)
+
+                # If the func invoked above is a streaming function, then fail
+                # this operation as we don't handle streaming functions in batch mode
+                if inspect.isgenerator(_r.get('result')):
+                    raise APIException('Cannot invoke streaming API fn in batch mode')
+
                 if isinstance(_r, dict) and 'success' in _r:
                     _r = _r['result'] if _r['success'] else None
                 r.append(_r)
@@ -420,15 +426,43 @@ class RPCHandler(BaseHandler):
         if self.get_status() == 304:
             return
 
+        # Get the API function object
         fnobj = self._get_apifn(fn) if fn != '__batch__' else (lambda: 0)
-        if 'raw' not in get_fn_tags(fnobj):
-            r = self.get_serializer(protocol)(r)
 
+        # Set response header based on chosen serialization mechanism
         mime = getattr(fnobj, 'mime', self.get_mime(protocol))
         self.set_header('Content-Type', mime)
-        self.set_header('Content-Length', len(r))
 
-        self.write(r)
+        is_raw = 'raw' in get_fn_tags(fnobj)
+        serializer = (lambda x: x) if is_raw else self.get_serializer(protocol)
+
+        if not r['success']:
+            r = serializer(r)
+            self.set_header('Content-Length', len(r))
+            self.write(r)
+            return
+
+        result = r['result']
+
+        if not inspect.isgenerator(result):
+            # Full response is available - Write it out in one shot
+            r = serializer(r)
+            self.set_header('Content-Length', len(r))
+            self.write(r)
+            return
+
+        # Streaming response - iterate and write out
+        for part in result:
+            part = serializer(part)
+            self.write(part)
+            sep = '\n' if is_raw else self.get_record_separator(protocol)
+            if sep: self.write(sep)
+            self.flush()
+
+    def get_record_separator(self, protocol):
+        return {'msgpack': '',
+                'json': '\n',
+                'python': '\n'}.get(protocol, self.server.SERIALIZER_RECORD_SEP)
 
     def get_serializer(self, name):
         return {'msgpack': msgpack.packb,
@@ -495,6 +529,7 @@ class Server(BaseScript):
     RPC_HANDLER_CLASS = RPCHandler
 
     SERIALIZER = staticmethod(msgpack.packb)
+    SERIALIZER_RECORD_SEP = ''
     DESERIALIZER = staticmethod(msgpack.unpackb)
     MIME = 'application/x-msgpack'
 
