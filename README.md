@@ -94,27 +94,5 @@ Instead do this:
 
 Now the pdb console will appear in the terminal where you started your server.
 
-### Multiprocessing and disabling gevent
-
-Gevent offers a great amount of convenience however it is currently
-incompatible with python's `multiprocessing` module. Here is an example on how
-to disable gevent so you can use `multiprocessing`.
-
-disable\_gevent.py
-```python
-from gevent import monkey; monkey.patch_all = lambda: None
-
-from funcserver import Server
-
-class MyServer(Server):
-    def run(self):
-        # do something here including using
-        # `multiprocessing` module
-        pass
-
-if __name__ == '__main__':
-    MyServer().start()
-```
-
 [travis-ci_status_img]: https://travis-ci.org/deep-compute/funcserver.svg?branch=master
 [travis-ci_funcserver]: https://travis-ci.org/deep-compute/funcserver

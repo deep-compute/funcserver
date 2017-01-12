@@ -1,5 +1,3 @@
-from gevent import monkey; monkey.patch_all()
-
 from basescript import BaseScript
 
 import os
@@ -21,7 +19,6 @@ import urlparse
 from multiprocessing.pool import ThreadPool
 
 import statsd
-import gevent
 import requests
 import tornado.ioloop
 import tornado.web
@@ -343,7 +340,6 @@ class CustomStaticFileHandler(StaticFileHandler):
         return absolute_path
 
 class RPCHandler(BaseHandler):
-    WRITE_CHUNK_SIZE = 4096
 
     def _get_apifn(self, fn_name):
         obj = self.api
@@ -431,10 +427,7 @@ class RPCHandler(BaseHandler):
         self.set_header('Content-Type', mime)
         self.set_header('Content-Length', len(r))
 
-        chunk_size = self.WRITE_CHUNK_SIZE
-        for i in xrange(0, len(r), chunk_size):
-            self.write(r[i:i+chunk_size])
-            self.flush()
+        self.write(r)
 
     def get_serializer(self, name):
         return {'msgpack': msgpack.packb,
@@ -561,7 +554,7 @@ class Server(BaseScript):
 
     def dump_stacks(self):
         '''
-        Dumps the stack of all threads and greenlets. This function
+        Dumps the stack of all threads. This function
         is meant for debugging. Useful when a deadlock happens.
 
         borrowed from: http://blog.ziade.org/2012/05/25/zmq-and-gevent-debugging-nightmares/
@@ -577,22 +570,6 @@ class Server(BaseScript):
             if thread not in threads: continue
             dump.append('Thread 0x%x (%s)\n' % (thread, threads[thread]))
             dump.append(''.join(traceback.format_stack(frame)))
-            dump.append('\n')
-
-        # greenlets
-        try:
-            from greenlet import greenlet
-        except ImportError:
-            return ''.join(dump)
-
-        # if greenlet is present, let's dump each greenlet stack
-        for ob in gc.get_objects():
-            if not isinstance(ob, greenlet):
-                continue
-            if not ob:
-                continue   # not running anymore or not started
-            dump.append('Greenlet\n')
-            dump.append(''.join(traceback.format_stack(ob.gr_frame)))
             dump.append('\n')
 
         return ''.join(dump)

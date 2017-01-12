@@ -22,7 +22,7 @@ def get_long_description():
 
 long_description = get_long_description()
 
-version = '0.2.12'
+version = '0.2.13'
 setup(
     name="funcserver",
     version=version,
@@ -35,7 +35,6 @@ setup(
     download_url="https://github.com/deep-compute/funcserver/tarball/%s" % version,
     license='MIT License',
     install_requires=[
-        'gevent',
         'statsd',
         'requests',
         'tornado',
