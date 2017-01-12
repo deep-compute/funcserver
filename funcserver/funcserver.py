@@ -33,9 +33,10 @@ MSG_TYPE_LOG = 2
 
 MAX_LOG_FILE_SIZE = 100 * 1024 * 1024 # 100MB
 
-# set the logging level of requests module to warning
-# otherwise it swamps with too many logs
-logging.getLogger('requests').setLevel(logging.WARNING)
+def disable_requests_debug_logs():
+    # set the logging level of requests module to warning
+    # otherwise it swamps with too many logs
+    logging.getLogger('requests').setLevel(logging.WARNING)
 
 class StatsCollector(object):
     STATS_FLUSH_INTERVAL = 1
@@ -502,6 +503,8 @@ class Server(BaseScript):
     # Number of worker threads in the threadpool
     THREADPOOL_WORKERS = 32
 
+    DISABLE_REQUESTS_DEBUG_LOGS = True
+
     def __init__(self):
         self.log_id = 0
 
@@ -512,6 +515,9 @@ class Server(BaseScript):
         self.pysessions = {}
 
         super(Server, self).__init__()
+
+        if self.DISABLE_REQUESTS_DEBUG_LOGS:
+            disable_requests_debug_logs()
 
         self.stats = self.create_stats()
         self.threadpool = ThreadPool(self.THREADPOOL_WORKERS)
@@ -684,6 +690,8 @@ class Client(object):
     SERIALIZER = staticmethod(msgpack.packb)
     DESERIALIZER = staticmethod(msgpack.unpackb)
 
+    DISABLE_REQUESTS_DEBUG_LOGS = True
+
     def __init__(self, server_url, prefix=None, parent=None):
         self.server_url = server_url
         self.rpc_url = urlparse.urljoin(server_url, 'rpc')
@@ -692,6 +700,9 @@ class Client(object):
         self.parent = parent
         self.bound = False
         self._calls = []
+
+        if self.DISABLE_REQUESTS_DEBUG_LOGS:
+            disable_requests_debug_logs()
 
     def __getattr__(self, attr):
         prefix = self.prefix + '.' + attr if self.prefix else attr
