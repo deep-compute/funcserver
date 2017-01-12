@@ -581,6 +581,7 @@ class Server(BaseScript):
             'static_handler_class': self.static_handler_class,
             'template_loader': self.template_loader,
             'compress_response': True,
+            'debug': self.args.debug,
         }
 
         all_handlers = handlers + base_handlers
@@ -634,6 +635,8 @@ class Server(BaseScript):
         parser.add_argument('--statsd-server', default=None,
             help='Location of StatsD server to send statistics. '
                 'Format is ip[:port]. Eg: localhost, localhost:8125')
+        parser.add_argument('--debug', action='store_true',
+                help='When enabled, auto reloads server on code change')
 
     def define_log_pre_format_hooks(self):
         hooks = super(Server, self).define_log_pre_format_hooks()
