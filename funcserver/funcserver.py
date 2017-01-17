@@ -573,7 +573,7 @@ class Server(BaseScript):
 
         self.static_handler_class = shclass
 
-        self.nav_tabs = [('Console', '/console'), ('Logs', '/logs')]
+        self.nav_tabs = [('Console', '/console'), ('Logs', '/logs')] if self.args.debug else []
         self.nav_tabs = self.prepare_nav_tabs(self.nav_tabs)
 
         settings = {
