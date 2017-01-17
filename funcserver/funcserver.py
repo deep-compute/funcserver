@@ -573,7 +573,9 @@ class Server(BaseScript):
 
         self.static_handler_class = shclass
 
-        self.nav_tabs = [('Console', '/console'), ('Logs', '/logs')] if self.args.debug else []
+        self.nav_tabs = [('Home', '/')]
+        if self.args.debug:
+            self.nav_tabs += [('Console', '/console'), ('Logs', '/logs')]
         self.nav_tabs = self.prepare_nav_tabs(self.nav_tabs)
 
         settings = {
@@ -663,10 +665,10 @@ class Server(BaseScript):
             (r'/ws/(.*)', WSConnection),
             (r'/logs', make_handler('logs.html', BaseHandler)),
             (r'/console', make_handler('console.html', BaseHandler)),
-            (r'/', make_handler('console.html', BaseHandler)),
         ]
 
         others = [
+            (r'/', make_handler('home.html', BaseHandler)),
             (r'/rpc(?:/([^/]*)/?)?', self.RPC_HANDLER_CLASS),
         ]
 

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}{{ server.NAME }} - Home{% end %}
+
+{% block body %}
+<div class="col-sm-12">
+</div>
+{% end %}
+
+{% block js %}
+<script>
+    $(document).ready(function() {
+        $('.nav a:contains("Home")').parent().addClass('active');
+    });
+</script>
+{% end %}

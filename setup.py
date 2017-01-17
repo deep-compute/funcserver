@@ -22,7 +22,7 @@ def get_long_description():
 
 long_description = get_long_description()
 
-version = '0.2.13'
+version = '0.2.14'
 setup(
     name="funcserver",
     version=version,
