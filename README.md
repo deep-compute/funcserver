@@ -27,10 +27,10 @@ if __name__ == '__main__':
 Run it by doing
 
 ``` bash
-python example.py run
+python example.py run --debug
 ```
 
-This server is now started and listening on default port 9345 for commands. You can interact with it using the Web UI by visiting http://localhost:9345/
+This server is now started and listening on default port 9345 for commands. You can interact with it using the Web UI by visiting http://localhost:9345/console
 
 If you want to start it on a different port, do
 
@@ -39,6 +39,8 @@ python example.py run --port <port no>
 ```
 
 ### Things to do in the Console
+
+> The Web UI console and logs are enabled only when the `--debug` option is provided.
 
 ``` python
 # see the objects available in the console env
