@@ -659,13 +659,21 @@ class Server(BaseScript):
     def prepare_base_handlers(self):
         # Tornado URL handlers for core functionality
 
-        return [
+        debug_mode_only = [
             (r'/ws/(.*)', WSConnection),
             (r'/logs', make_handler('logs.html', BaseHandler)),
             (r'/console', make_handler('console.html', BaseHandler)),
             (r'/', make_handler('console.html', BaseHandler)),
+        ]
+
+        others = [
             (r'/rpc(?:/([^/]*)/?)?', self.RPC_HANDLER_CLASS),
         ]
+
+        if self.args.debug:
+            return debug_mode_only + others
+        else:
+            return others
 
     def prepare_handlers(self):
         # Tornado URL handlers for additional functionality
