@@ -436,7 +436,7 @@ class RPCHandler(BaseHandler):
         is_raw = 'raw' in get_fn_tags(fnobj)
         serializer = (lambda x: x) if is_raw else self.get_serializer(protocol)
 
-        if not r['success']:
+        if fn == '__batch__' or not r['success']:
             r = serializer(r)
             self.set_header('Content-Length', len(r))
             self.write(r)
