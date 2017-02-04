@@ -728,7 +728,7 @@ class Server(BaseScript):
 def _passthrough(name):
     def fn(self, *args, **kwargs):
         p = self.prefix + '.' + name
-        if self.bound or self.parent is None:
+        if self.parent is None:
             return self._call(p, args, kwargs)
         else:
             return self.parent._call(p, args, kwargs)
@@ -740,13 +740,12 @@ class Client(object):
 
     DISABLE_REQUESTS_DEBUG_LOGS = True
 
-    def __init__(self, server_url, prefix=None, parent=None):
+    def __init__(self, server_url, prefix=None, parent=None, is_batch=False):
         self.server_url = server_url
         self.rpc_url = urlparse.urljoin(server_url, 'rpc')
-        self.is_batch = False
+        self.is_batch = is_batch
         self.prefix = prefix
         self.parent = parent
-        self.bound = False
         self._calls = []
 
         if self.DISABLE_REQUESTS_DEBUG_LOGS:
@@ -755,14 +754,11 @@ class Client(object):
     def __getattr__(self, attr):
         prefix = self.prefix + '.' + attr if self.prefix else attr
         return self.__class__(self.server_url, prefix=prefix,
-                parent=self if self.bound else self.parent)
-
-    def get_handle(self):
-        self.bound = True
-        return self
+                parent=self.parent or self,
+                is_batch=self.is_batch)
 
     def __call__(self, *args, **kwargs):
-        if self.bound or self.parent is None:
+        if self.parent is None:
             return self._call(self.prefix, args, kwargs)
         else:
             return self.parent._call(self.prefix, args, kwargs)
