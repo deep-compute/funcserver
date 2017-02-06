@@ -182,7 +182,6 @@ class WSConnection(tornado.websocket.WebSocketHandler):
         Called when client opens connection. Initialization
         is done here.
         '''
-
         self.id = id(self)
         self.funcserver = self.application.funcserver
         self.pysession_id = pysession_id
@@ -540,58 +539,6 @@ class Server(BaseScript):
 
     DISABLE_REQUESTS_DEBUG_LOGS = True
 
-    def __init__(self):
-        self.log_id = 0
-
-        # all active websockets and their state
-        self.websocks = {}
-
-        # all active python interpreter sessions
-        self.pysessions = {}
-
-        super(Server, self).__init__()
-
-        if self.DISABLE_REQUESTS_DEBUG_LOGS:
-            disable_requests_debug_logs()
-
-        self.stats = self.create_stats()
-        self.threadpool = ThreadPool(self.THREADPOOL_WORKERS)
-
-        self.api = None
-
-        # tornado app object
-        base_handlers = self.prepare_base_handlers()
-        handlers = self.prepare_handlers()
-        self.template_loader = TemplateLoader([resolve_path(self.TEMPLATE_PATH)])
-        _ = self.prepare_template_loader(self.template_loader)
-        if _ is not None: self.template_loader = _
-
-        shclass = CustomStaticFileHandler
-        shclass.PATHS.append(resolve_path(self.STATIC_PATH))
-        _ = self.prepare_static_paths(shclass.PATHS)
-        if _ is not None: shclass.PATHS = _
-
-        self.static_handler_class = shclass
-
-        self.nav_tabs = [('Home', '/')]
-        if self.args.debug:
-            self.nav_tabs += [('Console', '/console'), ('Logs', '/logs')]
-        self.nav_tabs = self.prepare_nav_tabs(self.nav_tabs)
-
-        settings = {
-            'static_path': '<DUMMY-INEXISTENT-PATH>',
-            'static_handler_class': self.static_handler_class,
-            'template_loader': self.template_loader,
-            'compress_response': True,
-            'debug': self.args.debug,
-        }
-
-        all_handlers = handlers + base_handlers
-        self.app = self.APP_CLASS(**settings)
-        self.app.add_handlers(self.VIRTUAL_HOST, all_handlers)
-
-        sys.funcserver = self.app.funcserver = self
-
     def create_stats(self):
         stats_prefix = '.'.join([x for x in (self.hostname, self.name) if x])
         return StatsCollector(stats_prefix, self.args.statsd_server)
@@ -641,16 +588,26 @@ class Server(BaseScript):
                 help='When enabled, auto reloads server on code change')
 
     def define_log_pre_format_hooks(self):
+        """
+        adds a hook to send to websocket if the run command was selected
+        """
         hooks = super(Server, self).define_log_pre_format_hooks()
-        hooks.append(self._send_log_to_ws)
+        # NOTE enabling logs only on debug mode
+        if self.args.func == self.run and self.args.debug:
+            hooks.append(self._send_log_to_ws)
+
         return hooks
 
     def _send_log_to_ws(self, msg):
+        websocks = getattr(self, "websocks", None)
+        if websocks is None or len(websocks) == 0:
+            return
+
         msg = {'type': MSG_TYPE_LOG, 'id': self.log_id, 'data': msg}
 
         bad_ws = []
 
-        for _id, ws in self.websocks.iteritems():
+        for _id, ws in websocks.iteritems():
             if ws is None: bad_ws.append(_id); continue
             ws['sock'].send_message(msg)
 
@@ -717,12 +674,63 @@ class Server(BaseScript):
         return None
 
     def run(self):
+        """ prepares the api and starts the tornado funcserver """
+        self.log_id = 0
+
+        # all active websockets and their state
+        self.websocks = {}
+
+        # all active python interpreter sessions
+        self.pysessions = {}
+
+        if self.DISABLE_REQUESTS_DEBUG_LOGS:
+            disable_requests_debug_logs()
+
+        self.stats = self.create_stats()
+        self.threadpool = ThreadPool(self.THREADPOOL_WORKERS)
+
+        self.api = None
+
+        # tornado app object
+        base_handlers = self.prepare_base_handlers()
+        handlers = self.prepare_handlers()
+        self.template_loader = TemplateLoader([resolve_path(self.TEMPLATE_PATH)])
+        _ = self.prepare_template_loader(self.template_loader)
+        if _ is not None: self.template_loader = _
+
+        shclass = CustomStaticFileHandler
+        shclass.PATHS.append(resolve_path(self.STATIC_PATH))
+        _ = self.prepare_static_paths(shclass.PATHS)
+        if _ is not None: shclass.PATHS = _
+
+        self.static_handler_class = shclass
+
+        self.nav_tabs = [('Home', '/')]
+        if self.args.debug:
+            self.nav_tabs += [('Console', '/console'), ('Logs', '/logs')]
+        self.nav_tabs = self.prepare_nav_tabs(self.nav_tabs)
+
+        settings = {
+            'static_path': '<DUMMY-INEXISTENT-PATH>',
+            'static_handler_class': self.static_handler_class,
+            'template_loader': self.template_loader,
+            'compress_response': True,
+            'debug': self.args.debug,
+        }
+
+        all_handlers = handlers + base_handlers
+        self.app = self.APP_CLASS(**settings)
+        self.app.add_handlers(self.VIRTUAL_HOST, all_handlers)
+
+        sys.funcserver = self.app.funcserver = self
+
         self.api = self.prepare_api()
         if self.api is not None and not hasattr(self.api, 'log'):
             self.api.log = self.log
 
         if self.args.port != 0:
             self.app.listen(self.args.port)
+
         tornado.ioloop.IOLoop.instance().start()
 
 def _passthrough(name):
