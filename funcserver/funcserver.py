@@ -38,72 +38,6 @@ def disable_requests_debug_logs():
     # otherwise it swamps with too many logs
     logging.getLogger('requests').setLevel(logging.WARNING)
 
-class StatsCollector(object):
-    STATS_FLUSH_INTERVAL = 1
-
-    def __init__(self, prefix, stats_loc):
-        self.cache = {}
-        self.gauge_cache = {}
-
-        self.stats = None
-        if not stats_loc: return
-
-        port = None
-        if ':' in stats_loc:
-            ip, port = stats_loc.split(':')
-            port = int(port)
-        else:
-            ip = stats_loc
-
-        S = statsd.StatsClient
-        self.stats = S(ip, port, prefix) if port is not None else S(ip, prefix=prefix)
-
-        def fn():
-            while 1:
-                time.sleep(self.STATS_FLUSH_INTERVAL)
-                self._collect_ramusage()
-                self.send()
-
-        self.stats_thread = threading.Thread(target=fn)
-        self.stats_thread.daemon = True
-        self.stats_thread.start()
-
-    def incr(self, key, n=1):
-        if self.stats is None: return
-        self.cache[key] = self.cache.get(key, 0) + n
-
-    def decr(self, key, n=1):
-        if self.stats is None: return
-        self.cache[key] = self.cache.get(key, 0) - n
-
-    def timing(self, key, ms):
-        if self.stats is None: return
-        return self.stats.timing(key, ms)
-
-    def gauge(self, key, n, delta=False):
-        if delta:
-            v, _ = self.gauge_cache.get(key, (0, True))
-            n += v
-        self.gauge_cache[key] = (n, delta)
-
-    def _collect_ramusage(self):
-        self.gauge('resource.maxrss',
-            resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
-
-    def send(self):
-        if self.stats is None: return
-        p = self.stats.pipeline()
-
-        for k, v in self.cache.iteritems():
-            p.incr(k, v)
-
-        for k, (v, d) in self.gauge_cache.iteritems():
-            p.gauge(k, v, delta=d)
-
-        p.send()
-        self.cache = {}
-        self.gauge_cache = {}
-
 def tag(*tags):
     '''
     Constructs a decorator that tags a function with specified
@@ -367,12 +301,11 @@ class RPCHandler(BaseHandler):
 
     def _handle_single_call(self, request, m):
         fn_name = m.get('fn', None)
-        sname = 'api.%s' % fn_name
         t = time.time()
 
+        tags = { "fn": fn_name or "unknown", "success": False }
         try:
             fn = self._get_apifn(fn_name)
-            self.stats.incr(sname)
             args = m['args']
             kwargs = self._clean_kwargs(m['kwargs'], fn)
 
@@ -383,7 +316,11 @@ class RPCHandler(BaseHandler):
             r = fn(*args, **kwargs)
             r = {'success': True, 'result': r}
 
+            tags['success'] = True
+
         except Exception, e:
+            tags['success'] = False
+
             self.log.exception('Exception during RPC call. '
                 'fn=%s, args=%s, kwargs=%s' % \
                 (m.get('fn', ''), repr(m.get('args', '[]')),
@@ -392,7 +329,11 @@ class RPCHandler(BaseHandler):
 
         finally:
             tdiff = (time.time() - t) * 1000
-            self.stats.timing(sname, tdiff)
+            (
+                self.stats.measure('api', **tags)
+                    .count(invoked=1)
+                    .time(duration=tdiff)
+            )
 
         try:
             _r = self.server.on_api_call_end(fn_name, args, kwargs, self, r)
@@ -539,10 +480,6 @@ class Server(BaseScript):
 
     DISABLE_REQUESTS_DEBUG_LOGS = True
 
-    def create_stats(self):
-        stats_prefix = '.'.join([x for x in (self.hostname, self.name) if x])
-        return StatsCollector(stats_prefix, self.args.statsd_server)
-
     def dump_stacks(self):
         '''
         Dumps the stack of all threads. This function
@@ -581,9 +518,6 @@ class Server(BaseScript):
 
         parser.add_argument('--port', default=self.DEFAULT_PORT,
             type=int, help='port to listen on for server')
-        parser.add_argument('--statsd-server', default=None,
-            help='Location of StatsD server to send statistics. '
-                'Format is ip[:port]. Eg: localhost, localhost:8125')
         parser.add_argument('--debug', action='store_true',
                 help='When enabled, auto reloads server on code change')
 
@@ -686,7 +620,6 @@ class Server(BaseScript):
         if self.DISABLE_REQUESTS_DEBUG_LOGS:
             disable_requests_debug_logs()
 
-        self.stats = self.create_stats()
         self.threadpool = ThreadPool(self.THREADPOOL_WORKERS)
 
         self.api = None
