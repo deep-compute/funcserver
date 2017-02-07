@@ -321,10 +321,9 @@ class RPCHandler(BaseHandler):
         except Exception, e:
             tags['success'] = False
 
-            self.log.exception('Exception during RPC call. '
-                'fn=%s, args=%s, kwargs=%s' % \
-                (m.get('fn', ''), repr(m.get('args', '[]')),
-                    repr(m.get('kwargs', '{}'))))
+            self.log.exception("RPC failed",
+                fn=fn_name, args=m.get('args'), kwargs=m.get('kwargs'),
+            )
             r = {'success': False, 'result': repr(e)}
 
         finally:
@@ -341,7 +340,9 @@ class RPCHandler(BaseHandler):
                 r = _r
         except (SystemExit, KeyboardInterrupt): raise
         except:
-            self.log.exception('In on_api_call_end for fn=%s' % fn_name)
+            self.log.exception("on_api_call_end failed",
+                fn=fn_name, args=args, kwargs=kwargs,
+            )
 
         return r
 
@@ -424,10 +425,9 @@ class RPCHandler(BaseHandler):
         try:
             return self._handle_call(request, fn, m, protocol)
         except Exception, e:
-            self.log.exception('Exception during RPC call. '
-                'fn=%s, args=%s, kwargs=%s' % \
-                (m.get('fn', ''), repr(m.get('args', '[]')),
-                    repr(m.get('kwargs', '{}'))))
+            self.log.exception("RPC failed", fn=m.get('fn'),
+                args=m.get('args'), kwargs=m.get('kwargs'),
+            )
             self.clear()
             self.set_status(500)
 
