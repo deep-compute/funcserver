@@ -1,4 +1,8 @@
-# FuncServer [![Build Status][travis-ci_status_img]][travis-ci_funcserver]
+FuncServer
+==========
+
+[![Build Status](https://travis-ci.org/deep-compute/funcserver.svg?branch=master)](https://travis-ci.org/deep-compute/funcserver)
+[![PyPI version](https://badge.fury.io/py/funcserver.svg)](https://badge.fury.io/py/funcserver)
 
 Simple and opiniated way to build APIs in Python.
 
@@ -95,6 +99,3 @@ Instead do this:
 ```
 
 Now the pdb console will appear in the terminal where you started your server.
-
-[travis-ci_status_img]: https://travis-ci.org/deep-compute/funcserver.svg?branch=master
-[travis-ci_funcserver]: https://travis-ci.org/deep-compute/funcserver
