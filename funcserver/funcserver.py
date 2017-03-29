@@ -21,6 +21,7 @@ from multiprocessing.pool import ThreadPool
 import statsd
 import requests
 import tornado.ioloop
+import tornado.iostream
 import tornado.web
 import tornado.websocket
 import tornado.iostream
@@ -275,6 +276,22 @@ class CustomStaticFileHandler(StaticFileHandler):
 
 class RPCHandler(BaseHandler):
 
+    def __init__(self, *args, **kwargs):
+        super(RPCHandler, self).__init__(*args, **kwargs)
+
+        # stop_iteration is turned on when the connection closes
+        # or self.finish is called. This is a signal to stop
+        # the iteration of any generator that is writing to the client.
+        self.stop_iteration = False
+
+    def on_finish(self):
+        super(RPCHandler, self).on_finish()
+        self.stop_iteration = True
+
+    def on_connection_close(self):
+        super(RPCHandler, self).on_connection_close()
+        self.stop_iteration = True
+
     def _get_apifn(self, fn_name):
         obj = self.api
         for part in fn_name.split('.'):
@@ -392,13 +409,29 @@ class RPCHandler(BaseHandler):
             self.write(r)
             return
 
-        # Streaming response - iterate and write out
-        for part in result:
-            part = serializer(part)
-            self.write(part)
-            sep = '\n' if is_raw else self.get_record_separator(protocol)
-            if sep: self.write(sep)
-            self.flush()
+        # Iterating over the results until iteration completes or
+        # the connection is closed.
+        try:
+            while not self.stop_iteration:
+                part = next(result)
+                part = serializer(part)
+                self.write(part)
+                sep = '' if is_raw else self.get_record_separator(protocol)
+                if sep: self.write(sep)
+                self.flush
+
+        except StopIteration:
+            # TODO iter stats that it completed successfully
+            pass
+
+        except tornado.iostream.StreamClosedError:
+            # TODO iter stats that it was closed
+            self.log.warning("stream closed by client")
+            pass
+
+        finally:
+            del result
+            gc.collect()
 
     def get_record_separator(self, protocol):
         return {'msgpack': '',
