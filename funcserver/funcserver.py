@@ -416,7 +416,7 @@ class RPCHandler(BaseHandler):
                 part = next(result)
                 part = serializer(part)
                 self.write(part)
-                sep = '\n' if is_raw else self.get_record_separator(protocol)
+                sep = '' if is_raw else self.get_record_separator(protocol)
                 if sep: self.write(sep)
                 self.flush
 
