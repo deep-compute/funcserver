@@ -21,6 +21,7 @@ from multiprocessing.pool import ThreadPool
 import statsd
 import requests
 import tornado.ioloop
+import tornado.iostream
 import tornado.web
 import tornado.websocket
 import tornado.iostream
@@ -410,20 +411,27 @@ class RPCHandler(BaseHandler):
 
         # Iterating over the results until iteration completes or
         # the connection is closed.
-        while not self.stop_iteration:
-            try:
+        try:
+            while not self.stop_iteration:
                 part = next(result)
-            except StopIteration:
-                break
+                part = serializer(part)
+                self.write(part)
+                sep = '\n' if is_raw else self.get_record_separator(protocol)
+                if sep: self.write(sep)
+                self.flush
 
-            part = serializer(part)
-            self.write(part)
-            sep = '\n' if is_raw else self.get_record_separator(protocol)
-            if sep: self.write(sep)
-            self.flush()
+        except StopIteration:
+            # TODO iter stats that it completed successfully
+            pass
 
-        del result
-        gc.collect()
+        except tornado.iostream.StreamClosedError:
+            # TODO iter stats that it was closed
+            self.log.warning("stream closed by client")
+            pass
+
+        finally:
+            del result
+            gc.collect()
 
     def get_record_separator(self, protocol):
         return {'msgpack': '',
