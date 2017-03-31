@@ -361,6 +361,7 @@ class RPCHandler(BaseHandler):
                 fn=fn_name, args=args, kwargs=kwargs,
             )
 
+        r.update(self.server.define_common_tags())
         return r
 
     def _handle_call(self, request, fn, m, protocol):
@@ -640,8 +641,24 @@ class Server(BaseScript):
         '''
         return None
 
+    def define_common_tags(self):
+        '''
+        Define common key value pairs as a dictionary that will be
+        part of every response to the client
+        '''
+        return {}
+
+    def _validate_common_tags(self):
+        tags = self.define_common_tags()
+        for tag in ('result', 'success'):
+            if tag not in tags: continue
+
+            self.log.warning("bad common tag", name=tag)
+
     def run(self):
         """ prepares the api and starts the tornado funcserver """
+        self._validate_common_tags()
+
         self.log_id = 0
 
         # all active websockets and their state
