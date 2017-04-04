@@ -361,7 +361,6 @@ class RPCHandler(BaseHandler):
                 fn=fn_name, args=args, kwargs=kwargs,
             )
 
-        r.update(self.server.define_common_tags())
         return r
 
     def _handle_call(self, request, fn, m, protocol):
@@ -468,8 +467,13 @@ class RPCHandler(BaseHandler):
         finally:
             self.finish()
 
+    def _set_headers(self):
+        for k,v in self.server.define_headers().iteritems():
+            self.set_header(k, v)
+
     @tornado.web.asynchronous
     def post(self, protocol='default'):
+        self._set_headers()
         m = self.get_deserializer(protocol)(self.request.body)
         fn = m['fn']
         self.server.threadpool.apply_async(lambda: self._handle_call_wrapper(self.request, fn, m, protocol))
@@ -481,6 +485,7 @@ class RPCHandler(BaseHandler):
 
     @tornado.web.asynchronous
     def get(self, protocol='default'):
+        self._set_headers()
         D = self.failsafe_json_decode
         args = dict([(k, D(v[0]) if len(v) == 1 else [D(x) for x in v])\
                     for k, v in self.request.arguments.iteritems()])
@@ -641,24 +646,15 @@ class Server(BaseScript):
         '''
         return None
 
-    def define_common_tags(self):
+    def define_headers(self):
         '''
-        Define common key value pairs as a dictionary that will be
-        part of every response to the client
+        the dictionary returned by define_headers will be used as
+        header key and value in every response to a client.
         '''
         return {}
 
-    def _validate_common_tags(self):
-        tags = self.define_common_tags()
-        for tag in ('result', 'success'):
-            if tag not in tags: continue
-
-            self.log.warning("bad common tag", name=tag)
-
     def run(self):
         """ prepares the api and starts the tornado funcserver """
-        self._validate_common_tags()
-
         self.log_id = 0
 
         # all active websockets and their state
