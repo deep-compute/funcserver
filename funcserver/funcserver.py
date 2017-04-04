@@ -418,7 +418,7 @@ class RPCHandler(BaseHandler):
                 self.write(part)
                 sep = '' if is_raw else self.get_record_separator(protocol)
                 if sep: self.write(sep)
-                self.flush
+                self.flush()
 
         except StopIteration:
             # TODO iter stats that it completed successfully
