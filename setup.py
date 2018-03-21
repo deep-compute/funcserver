@@ -39,7 +39,7 @@ setup(
         'requests==2.18.4',
         'tornado==5.0.1',
         'msgpack-python==0.5.6',
-        'basescript >= 0.1.6',
+        'basescript==0.2.2',
     ],
     package_dir={'funcserver': 'funcserver'},
     packages=find_packages('.'),
