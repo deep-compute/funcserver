@@ -13,9 +13,16 @@ import string
 import random
 import threading
 import msgpack
-import cStringIO
+try:
+    import cStringIO as io
+except ImportError:
+    import io
 import traceback
-import urlparse
+try:
+    import urlparse
+except ImportError:
+    import urllib.parse as urlparse
+
 from multiprocessing.pool import ThreadPool
 
 import statsd
@@ -152,7 +159,7 @@ class WSConnection(tornado.websocket.WebSocketHandler):
 
         stdout = sys.stdout
         try:
-            sys.stdout = cStringIO.StringIO()
+            sys.stdout = io.StringIO()
             interpreter.runsource(code)
             output = sys.stdout.getvalue() or interpreter.output
             if isinstance(output, list): output = ''.join(output)
@@ -335,7 +342,7 @@ class RPCHandler(BaseHandler):
 
             tags['success'] = True
 
-        except Exception, e:
+        except Exception as e:
             tags['success'] = False
 
             self.log.exception("RPC failed",
@@ -457,7 +464,7 @@ class RPCHandler(BaseHandler):
     def _handle_call_wrapper(self, request, fn, m, protocol):
         try:
             return self._handle_call(request, fn, m, protocol)
-        except Exception, e:
+        except Exception as e:
             self.log.exception("RPC failed", fn=m.get('fn'),
                 args=m.get('args'), kwargs=m.get('kwargs'),
             )
@@ -468,18 +475,18 @@ class RPCHandler(BaseHandler):
             self.finish()
 
     def _set_headers(self):
-        for k,v in self.server.define_headers().iteritems():
+        for k,v in self.server.define_headers().items():
             self.set_header(k, v)
 
     @tornado.web.asynchronous
     def post(self, protocol='default'):
         self._set_headers()
-        m = self.get_deserializer(protocol)(self.request.body)
+        m = self.get_deserializer(protocol)(self.request.body, encoding='utf-8')
         fn = m['fn']
         self.server.threadpool.apply_async(lambda: self._handle_call_wrapper(self.request, fn, m, protocol))
 
     def failsafe_json_decode(self, v):
-        try: v = json.loads(v)
+        try: v = json.loads(v.decode('utf-8'))
         except ValueError: pass
         return v
 
@@ -488,10 +495,18 @@ class RPCHandler(BaseHandler):
         self._set_headers()
         D = self.failsafe_json_decode
         args = dict([(k, D(v[0]) if len(v) == 1 else [D(x) for x in v])\
-                    for k, v in self.request.arguments.iteritems()])
+                    for k, v in self.request.arguments.items()])
 
-        fn = args.pop('fn')
-        m = dict(kwargs=args, fn=fn, args=[])
+        kwargs = {}
+        for k, v in args.items():
+            if isinstance(k, bytes):
+                k = k.decode('utf-8')
+            if isinstance(v, bytes):
+                v = v.decode('utf-8')
+            kwargs[k] = v
+
+        fn = kwargs.pop('fn')
+        m = dict(kwargs=kwargs, fn=fn, args=[])
         self.server.threadpool.apply_async(lambda: self._handle_call_wrapper(self.request, fn, m, protocol))
 
 
@@ -580,7 +595,7 @@ class Server(BaseScript):
 
         bad_ws = []
 
-        for _id, ws in websocks.iteritems():
+        for _id, ws in websocks.items():
             if ws is None: bad_ws.append(_id); continue
             ws['sock'].send_message(msg)
 
@@ -773,7 +788,7 @@ class Client(object):
     def _do_single_call(self, fn, args, kwargs):
         m = self.SERIALIZER(dict(fn=fn, args=args, kwargs=kwargs))
         req = requests.post(self.rpc_url, data=m)
-        res = self.DESERIALIZER(req.content)
+        res = self.DESERIALIZER(req.content, encoding='utf-8')
 
         if not res['success']:
             raise RPCCallException(res['result'])
@@ -786,7 +801,7 @@ class Client(object):
         m = dict(fn='__batch__', calls=self._calls)
         m = self.SERIALIZER(m)
         req = requests.post(self.rpc_url, data=m)
-        res = self.DESERIALIZER(req.content)
+        res = self.DESERIALIZER(req.content, encoding='utf-8')
         self._calls = []
 
         return res
