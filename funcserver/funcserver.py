@@ -727,7 +727,7 @@ class Client(object):
 
     DISABLE_REQUESTS_DEBUG_LOGS = True
 
-    def __init__(self, server_url, prefix=None, parent=None, is_batch=False, auth=""):
+    def __init__(self, server_url, prefix=None, parent=None, is_batch=False, auth=None):
         self.server_url = server_url
         self.rpc_url = urlparse.urljoin(server_url, 'rpc')
         self.is_batch = is_batch
