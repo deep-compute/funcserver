@@ -14,7 +14,7 @@ deploy:
   # test pypi
   - provider: pypi
     distributions: "sdist bdist_wheel"
-    server: https://testpypi.python.org/pypi
+    server: https://test.pypi.org/legacy/
     skip_cleanup: true
     user: "deepcompute"
     password:
