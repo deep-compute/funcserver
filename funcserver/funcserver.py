@@ -727,13 +727,14 @@ class Client(object):
 
     DISABLE_REQUESTS_DEBUG_LOGS = True
 
-    def __init__(self, server_url, prefix=None, parent=None, is_batch=False):
+    def __init__(self, server_url, prefix=None, parent=None, is_batch=False, auth=None):
         self.server_url = server_url
         self.rpc_url = urlparse.urljoin(server_url, 'rpc')
         self.is_batch = is_batch
         self.prefix = prefix
         self.parent = parent
         self._calls = []
+        self.auth = auth
 
         if self.DISABLE_REQUESTS_DEBUG_LOGS:
             disable_requests_debug_logs()
@@ -772,7 +773,10 @@ class Client(object):
 
     def _do_single_call(self, fn, args, kwargs):
         m = self.SERIALIZER(dict(fn=fn, args=args, kwargs=kwargs))
-        req = requests.post(self.rpc_url, data=m)
+        if self.auth:
+            req = requests.post(self.rpc_url, data=m, auth=self.auth)
+        else:
+            req = requests.post(self.rpc_url, data=m)
         res = self.DESERIALIZER(req.content)
 
         if not res['success']:
@@ -785,7 +789,10 @@ class Client(object):
 
         m = dict(fn='__batch__', calls=self._calls)
         m = self.SERIALIZER(m)
-        req = requests.post(self.rpc_url, data=m)
+        if self.auth:
+            req = requests.post(self.rpc_url, data=m, auth=self.auth)
+        else:
+            req = requests.post(self.rpc_url, data=m)
         res = self.DESERIALIZER(req.content)
         self._calls = []
 
