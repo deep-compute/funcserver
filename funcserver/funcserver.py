@@ -742,7 +742,7 @@ class Client(object):
 
     DISABLE_REQUESTS_DEBUG_LOGS = True
 
-    def __init__(self, server_url, prefix=None, parent=None, is_batch=False, auth=""):
+    def __init__(self, server_url, prefix=None, parent=None, is_batch=False, auth="", headers=""):
         self.server_url = server_url
         self.rpc_url = urlparse.urljoin(server_url, 'rpc')
         self.is_batch = is_batch
@@ -750,6 +750,7 @@ class Client(object):
         self.parent = parent
         self._calls = []
         self.auth = auth
+        self.headers = headers
 
         if self.DISABLE_REQUESTS_DEBUG_LOGS:
             disable_requests_debug_logs()
@@ -790,6 +791,8 @@ class Client(object):
         m = self.SERIALIZER(dict(fn=fn, args=args, kwargs=kwargs))
         if self.auth:
             req = requests.post(self.rpc_url, data=m, auth=self.auth)
+        elif self.headers:
+            req = requests.post(self.rpc_url, data=m, headers=self.headers)
         else:
             req = requests.post(self.rpc_url, data=m)
         res = self.DESERIALIZER(req.content, encoding='utf-8')
@@ -806,6 +809,8 @@ class Client(object):
         m = self.SERIALIZER(m)
         if self.auth:
             req = requests.post(self.rpc_url, data=m, auth=self.auth)
+        elif self.headers:
+            req = requests.post(self.rpc_url, data=m, headers=self.headers)
         else:
             req = requests.post(self.rpc_url, data=m)
         res = self.DESERIALIZER(req.content, encoding='utf-8')
