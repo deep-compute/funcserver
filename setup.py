@@ -2,8 +2,10 @@ from setuptools import setup, find_packages
 import os
 
 HERE = os.path.abspath(os.path.dirname(__file__))
+
+
 def get_long_description():
-    dirs = [ HERE ]
+    dirs = [HERE]
     if os.getenv("TRAVIS"):
         dirs.append(os.getenv("TRAVIS_BUILD_DIR"))
 
@@ -20,34 +22,35 @@ def get_long_description():
 
     return long_description
 
+
 long_description = get_long_description()
 
-version = '0.2.18'
+version = "0.2.18"
 setup(
     name="funcserver",
     version=version,
     description="Simple and opiniated way to build APIs in Python",
     long_description=long_description,
-    keywords='funcserver',
-    author='Deep Compute, LLC',
+    keywords="funcserver",
+    author="Deep Compute, LLC",
     author_email="contact@deepcompute.com",
     url="https://github.com/deep-compute/funcserver",
     download_url="https://github.com/deep-compute/funcserver/tarball/%s" % version,
-    license='MIT License',
+    license="MIT License",
     install_requires=[
-        'statsd==3.2.2',
-        'requests==2.20.0',
-        'tornado==5.0.1',
-        'msgpack-python==0.5.6',
-        'basescript==0.2.2',
+        "statsd==3.2.2",
+        "requests==2.20.0",
+        "tornado==5.0.1",
+        "msgpack-python==0.5.6",
+        "basescript==0.2.2",
     ],
-    package_dir={'funcserver': 'funcserver'},
-    packages=find_packages('.'),
+    package_dir={"funcserver": "funcserver"},
+    packages=find_packages("."),
     include_package_data=True,
     classifiers=[
         "Programming Language :: Python :: 2.7",
         "Environment :: Console",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
-    ]
+    ],
 )
