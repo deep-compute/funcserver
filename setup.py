@@ -39,7 +39,7 @@ setup(
     license="MIT License",
     install_requires=[
         "statsd==3.2.2",
-        "requests==2.20.0",
+        "requests==2.31.0",
         "tornado==5.0.1",
         "msgpack-python==0.5.6",
         "basescript==0.2.2",
